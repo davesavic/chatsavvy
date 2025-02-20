@@ -2,44 +2,32 @@ package chatsavvy
 
 import (
 	"context"
-	"log/slog"
-	"os"
-	"strings"
+	"time"
 
-	"github.com/davesavic/chatsavvy/migrations"
+	"github.com/davesavic/chatsavvy/repository"
 	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-func MigrateDatabase() {
-	client, err := mongo.Connect(options.Client().ApplyURI(os.Getenv("MONGODB_URI")))
+type ChatSavvy struct {
+	client *mongo.Client
+
+	Conversation repository.Conversation
+}
+
+func New(client *mongo.Client) (*ChatSavvy, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := client.Ping(ctx, nil)
 	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		if err = client.Disconnect(context.Background()); err != nil {
-			panic(err)
-		}
-	}()
-
-	err = client.Ping(context.Background(), nil)
-	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	if len(os.Args) < 2 {
-		panic("Please provide a direction")
-	}
+	db := client.Database("chatsavvy")
 
-	direction := strings.ToLower(os.Args[1])
-	if direction != "up" && direction != "down" {
-		panic("Invalid direction. Please provide either 'up' or 'down'")
-	}
+	return &ChatSavvy{
+		client: client,
 
-	err = migrations.Run(client, direction)
-	if err != nil {
-		panic(err)
-	}
-
-	slog.Info("Migration completed")
+		Conversation: *repository.NewConversation(db),
+	}, nil
 }
