@@ -1,0 +1,61 @@
+version: '3'
+
+dotenv: ['config/env/.env']
+
+vars:
+  CONFIG_DIR: config
+
+tasks:
+  generate:
+    desc: Generate go code
+    aliases: [g]
+    cmds:
+      - go generate
+
+  docker:up:
+    desc: Start docker compose
+    preconditions:
+      - test -f {{.CONFIG_DIR}}/docker/docker-compose.local.yml
+    aliases: [du]
+    cmds:
+      - docker compose -f {{.CONFIG_DIR}}/docker/docker-compose.local.yml up -d
+
+  docker:down:
+    desc: Stop docker compose
+    preconditions:
+      - test -f {{.CONFIG_DIR}}/docker/docker-compose.local.yml
+    aliases: [dd]
+    cmds:
+      - docker compose -f {{.CONFIG_DIR}}/docker/docker-compose.local.yml down
+
+  docker:logs:
+    desc: Show docker compose logs in real time
+    preconditions:
+      - test -f {{.CONFIG_DIR}}/docker/docker-compose.local.yml
+    aliases: [dl]
+    cmds:
+      - docker compose -f {{.CONFIG_DIR}}/docker/docker-compose.local.yml logs -f
+
+  docker:purge:
+    desc: Remove all docker containers, images, and volumes
+    aliases: [dp]
+    cmds:
+      - docker compose -f {{.CONFIG_DIR}}/docker/docker-compose.local.yml down --volumes --rmi all
+
+  migrate:up:
+    desc: Run database migrations to the latest version
+    aliases: [mu]
+    cmds:
+      - go run cmd/migrate/main.go up
+
+  migrate:down:
+    desc: Rollback the first database migration
+    aliases: [md]
+    cmds:
+      - go run cmd/migrate/main.go down
+
+  test:
+    desc: Run all tests
+    aliases: [t]
+    cmds:
+      - go test -v ./...
