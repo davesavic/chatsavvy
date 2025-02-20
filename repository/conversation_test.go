@@ -201,3 +201,61 @@ func TestConversationRepository_Paginate(t *testing.T) {
 		})
 	}
 }
+
+func TestConversationRepository_Find(t *testing.T) {
+	client := testutil.MustConnectMongoDB(t, os.Getenv("MONGODB_URI"))
+	t.Cleanup(func() {
+		client.Disconnect(nil)
+	})
+
+	cr := repository.NewConversation(client.Database("chatsavvy"))
+	conv, err := cr.Create(t.Context(), data.CreateConversation{
+		Participants: []data.CreateParticipant{
+			{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+			{ParticipantID: "1111111111"},
+		},
+	})
+	assert.NoError(t, err)
+
+	testCases := []struct {
+		name    string
+		id      string
+		asserts func(t *testing.T, conv *model.Conversation, err error)
+	}{
+		{
+			name: "valid",
+			id:   conv.ID.Hex(),
+			asserts: func(t *testing.T, conv *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, conv.ID.Hex(), conv.ID.Hex())
+				assert.Len(t, conv.Participants, 2)
+				assert.Equal(t, "1234567890", conv.Participants[0].ParticipantID)
+				assert.Equal(t, "1111111111", conv.Participants[1].ParticipantID)
+				assert.Equal(t, "0987654321", conv.Participants[0].Metadata["business_id"])
+			},
+		},
+		{
+			name: "invalid with invalid id",
+			id:   "",
+			asserts: func(t *testing.T, conv *model.Conversation, err error) {
+				assert.Error(t, err)
+				assert.Nil(t, conv)
+			},
+		},
+		{
+			name: "invalid with not found id",
+			id:   "5f0c5b7a1a3f4b0c1c8d3b6b",
+			asserts: func(t *testing.T, conv *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.Nil(t, conv)
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			conv, err := cr.Find(t.Context(), tt.id)
+			tt.asserts(t, conv, err)
+		})
+	}
+}
