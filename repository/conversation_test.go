@@ -259,3 +259,165 @@ func TestConversationRepository_Find(t *testing.T) {
 		})
 	}
 }
+
+func TestConversationRepository_AddParticipant(t *testing.T) {
+	testCases := []struct {
+		name        string
+		setup       func(t *testing.T, cr *repository.Conversation) (*model.Conversation, *model.Conversation)
+		participant func(t *testing.T) data.CreateParticipant
+		expects     func(t *testing.T, resultConv *model.Conversation, expectedConv *model.Conversation, err error)
+	}{
+		{
+			name: "returns existing conversation if participants already exist",
+			setup: func(t *testing.T, cr *repository.Conversation) (*model.Conversation, *model.Conversation) {
+				conv1, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.CreateParticipant{
+						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
+						{ParticipantID: "1111111111"},
+					},
+				})
+				assert.NoError(t, err)
+
+				conv2, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.CreateParticipant{
+						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
+					},
+				})
+				assert.NoError(t, err)
+
+				return conv1, conv2
+			},
+			participant: func(t *testing.T) data.CreateParticipant {
+				return data.CreateParticipant{
+					ParticipantID: "1111111111",
+				}
+			},
+			expects: func(t *testing.T, resultConv *model.Conversation, expectedConv *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, expectedConv.ID.Hex(), resultConv.ID.Hex())
+				assert.Len(t, resultConv.Participants, 3)
+				assert.Equal(t, expectedConv.Participants[0].ParticipantID, resultConv.Participants[0].ParticipantID)
+				assert.Equal(t, expectedConv.Participants[1].ParticipantID, resultConv.Participants[1].ParticipantID)
+				assert.Equal(t, expectedConv.Participants[2].ParticipantID, resultConv.Participants[2].ParticipantID)
+				assert.Equal(t, expectedConv.Participants[0].Metadata["business_id"], resultConv.Participants[0].Metadata["business_id"])
+				assert.Equal(t, expectedConv.Participants[1].Metadata["business_id"], resultConv.Participants[1].Metadata["business_id"])
+			},
+		},
+		{
+			name: "adds participant to the conversation if participants do not exist",
+			setup: func(t *testing.T, cr *repository.Conversation) (*model.Conversation, *model.Conversation) {
+				conv, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.CreateParticipant{
+						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
+					},
+				})
+				assert.NoError(t, err)
+
+				return conv, conv
+			},
+			participant: func(t *testing.T) data.CreateParticipant {
+				return data.CreateParticipant{
+					ParticipantID: "1111111111",
+				}
+			},
+			expects: func(t *testing.T, resultConv *model.Conversation, expectedConv *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, expectedConv.ID.Hex(), resultConv.ID.Hex())
+				assert.Len(t, resultConv.Participants, 3)
+			},
+		},
+		{
+			name: "returns existing conversation if participant exists with metadata",
+			setup: func(t *testing.T, cr *repository.Conversation) (*model.Conversation, *model.Conversation) {
+				conv1, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.CreateParticipant{
+						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
+						{ParticipantID: "1111111111"},
+					},
+				})
+				assert.NoError(t, err)
+
+				conv2, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.CreateParticipant{
+						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+						{ParticipantID: "1111111111"},
+					},
+				})
+				assert.NoError(t, err)
+
+				return conv1, conv2
+			},
+			participant: func(t *testing.T) data.CreateParticipant {
+				return data.CreateParticipant{
+					ParticipantID: "2222222222",
+					Metadata:      map[string]any{"business_id": "999999999"},
+				}
+			},
+			expects: func(t *testing.T, resultConv *model.Conversation, expectedConv *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, expectedConv.ID.Hex(), resultConv.ID.Hex())
+				assert.Len(t, resultConv.Participants, 3)
+				assert.Equal(t, expectedConv.Participants[0].ParticipantID, resultConv.Participants[0].ParticipantID)
+				assert.Equal(t, expectedConv.Participants[1].ParticipantID, resultConv.Participants[1].ParticipantID)
+				assert.Equal(t, expectedConv.Participants[2].ParticipantID, resultConv.Participants[2].ParticipantID)
+				assert.Equal(t, expectedConv.Participants[0].Metadata["business_id"], resultConv.Participants[0].Metadata["business_id"])
+				assert.Equal(t, expectedConv.Participants[1].Metadata["business_id"], resultConv.Participants[1].Metadata["business_id"])
+			},
+		},
+		{
+			name: "returns new conversation if participant exists with different metadata",
+			setup: func(t *testing.T, cr *repository.Conversation) (*model.Conversation, *model.Conversation) {
+				conv1, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.CreateParticipant{
+						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
+						{ParticipantID: "1111111111"},
+					},
+				})
+				assert.NoError(t, err)
+
+				conv2, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.CreateParticipant{
+						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+						{ParticipantID: "1111111111"},
+					},
+				})
+				assert.NoError(t, err)
+
+				return conv1, conv2
+			},
+			participant: func(t *testing.T) data.CreateParticipant {
+				return data.CreateParticipant{
+					ParticipantID: "2222222222",
+					Metadata:      map[string]any{"business_id": "1111111111"},
+				}
+			},
+			expects: func(t *testing.T, resultConv *model.Conversation, expectedConv *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.NotEqual(t, expectedConv.ID.Hex(), resultConv.ID.Hex())
+				assert.Len(t, resultConv.Participants, 3)
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			client := testutil.MustConnectMongoDB(t, os.Getenv("MONGODB_URI"))
+			t.Cleanup(func() {
+				client.Disconnect(nil)
+			})
+
+			cr := repository.NewConversation(client.Database("chatsavvy"))
+			expectedConv, currentConv := tt.setup(t, cr)
+
+			resultConv, err := cr.AddParticipant(t.Context(), currentConv.ID.Hex(), tt.participant(t))
+			assert.NoError(t, err)
+
+			tt.expects(t, resultConv, expectedConv, err)
+		})
+	}
+}
