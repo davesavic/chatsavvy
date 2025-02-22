@@ -11,7 +11,8 @@ import (
 type ChatSavvy struct {
 	client *mongo.Client
 
-	Conversation repository.Conversation
+	Conversation *repository.Conversation
+	Message      *repository.Message
 }
 
 func New(client *mongo.Client) (*ChatSavvy, error) {
@@ -28,6 +29,7 @@ func New(client *mongo.Client) (*ChatSavvy, error) {
 	return &ChatSavvy{
 		client: client,
 
-		Conversation: *repository.NewConversation(db),
+		Conversation: repository.NewConversation(db),
+		Message:      repository.NewMessage(db, repository.NewConversation(db)),
 	}, nil
 }

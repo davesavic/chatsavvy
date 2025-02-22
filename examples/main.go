@@ -47,15 +47,21 @@ func main() {
 
 	cs.Conversation.DeleteParticipant(context.Background(), "1234567890", csdata.DeleteParticipant{})
 
+	cs.Message.Create(context.Background(), "1234567890", csdata.CreateMessage{
+		Kind: "general",
+		Sender: csdata.MessageSender{
+			ParticipantID: "1234567890",
+		},
+		Content: "Hello, World!",
+	})
+
 	// TODO:
 
-	// cs.Conversation.Delete(context.Background(), "1234567890")
+	cs.Message.Paginate(context.Background(), csdata.PaginateMessages{
+		ConversationID: "1234567890",
+		Page:           1,
+		PerPage:        10,
+	})
 
-	// cs.Message.Create(context.Background(), csdata.CreateMessage{
-	//	ConversationID: "1234567890",
-	//	ParticipantID:  "0987654321",
-	//	Kind:		    csdata.MessageKindText,
-	//	Content:        "Hello, World!",
-	//	Metadata:       map[string]any{},
-	// })
+	// cs.Conversation.Delete(context.Background(), "1234567890")
 }

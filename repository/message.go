@@ -61,8 +61,8 @@ func (m Message) Create(ctx context.Context, conversationID string, d data.Creat
 	return &message, nil
 }
 
-func (m Message) Paginate(ctx context.Context) error {
-	return nil
+func (m Message) Paginate(ctx context.Context, d data.PaginateMessages) ([]model.Message, uint, error) {
+	return nil, 0, nil
 }
 
 func (m Message) ToggleReaction(ctx context.Context) error {

@@ -16,3 +16,13 @@ type CreateMessage struct {
 func (c CreateMessage) Validate() error {
 	return validator.New().Struct(c)
 }
+
+type PaginateMessages struct {
+	ConversationID string `validate:"required,min=1,max=100" bson:"conversation_id"`
+	Page           int    `validate:"required,min=1" bson:"page"`
+	PerPage        int    `validate:"required,min=1,max=100" bson:"per_page"`
+}
+
+func (c PaginateMessages) Validate() error {
+	return validator.New().Struct(c)
+}
