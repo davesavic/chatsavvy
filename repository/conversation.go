@@ -252,3 +252,32 @@ func (c Conversation) Paginate(ctx context.Context, d data.PaginateConversations
 
 	return conversations, uint(total), nil
 }
+
+func (c Conversation) UpdateLastMessage(ctx context.Context, conversationID string, message model.Message) error {
+	conversationIDHex, err := bson.ObjectIDFromHex(conversationID)
+	if err != nil {
+		return fmt.Errorf("failed to parse conversation id: %w", err)
+	}
+
+	filter := bson.M{
+		"_id": conversationIDHex,
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"last_message": message,
+			"updated_at":   bson.NewDateTimeFromTime(message.CreatedAt),
+		},
+	}
+
+	res, err := c.db.Collection("conversations").UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update last message: %w", err)
+	}
+
+	if res.MatchedCount == 0 {
+		return fmt.Errorf("conversation not found")
+	}
+
+	return nil
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/davesavic/chatsavvy/repository"
 	"github.com/davesavic/chatsavvy/testutil"
 	"github.com/stretchr/testify/assert"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestConversationRepository_Create(t *testing.T) {
@@ -547,4 +548,37 @@ func TestConversationRepository_DeleteParticipant(t *testing.T) {
 			tt.expects(t, resultConv, err)
 		})
 	}
+}
+
+func TestConversationRepository_UpdateLastMessage(t *testing.T) {
+	client := testutil.MustConnectMongoDB(t, os.Getenv("MONGODB_URI"))
+	t.Cleanup(func() {
+		client.Disconnect(nil)
+	})
+
+	cr := repository.NewConversation(client.Database("chatsavvy"))
+	conv, err := cr.Create(t.Context(), data.CreateConversation{
+		Participants: []data.AddParticipant{
+			{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+			{ParticipantID: "1111111111"},
+		},
+	})
+	assert.NoError(t, err)
+
+	err = cr.UpdateLastMessage(t.Context(), conv.ID.Hex(), model.Message{
+		ID:             bson.NewObjectID(),
+		ConversationID: conv.ID,
+		Sender:         model.MessageSender{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+		Kind:           "general",
+		Content:        "Hello, World!",
+		CreatedAt:      time.Now(),
+	})
+	assert.NoError(t, err)
+
+	conv, err = cr.Find(t.Context(), conv.ID.Hex())
+	assert.NoError(t, err)
+	assert.NotNil(t, conv.LastMessage)
+	assert.Equal(t, "Hello, World!", conv.LastMessage.Content)
+	assert.Equal(t, "1234567890", conv.LastMessage.Sender.ParticipantID)
+	assert.Equal(t, "0987654321", conv.LastMessage.Sender.Metadata["business_id"])
 }

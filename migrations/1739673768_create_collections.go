@@ -38,6 +38,29 @@ func Up1739673768(ctx context.Context, db *mongo.Database) error {
 						},
 					},
 				},
+				"last_message": bson.M{
+					"bsonType": "object",
+					"properties": bson.M{
+						"sender": bson.M{
+							"bsonType": "object",
+							"required": []string{"participant_id"},
+							"properties": bson.M{
+								"participant_id": bson.M{
+									"bsonType": "string",
+								},
+								"metadata": bson.M{
+									"anyOf": []bson.M{
+										{"bsonType": "object"},
+										{"bsonType": "null"},
+									},
+								},
+							},
+						},
+						"content": bson.M{
+							"bsonType": "string",
+						},
+					},
+				},
 				"metadata": bson.M{
 					"anyOf": []bson.M{
 						{"bsonType": "object"},
@@ -68,16 +91,28 @@ func Up1739673768(ctx context.Context, db *mongo.Database) error {
 	messagesValidator := bson.M{
 		"$jsonSchema": bson.M{
 			"bsonType": "object",
-			"required": []string{"conversation_id", "sender_id", "type", "content", "created_at"},
+			"required": []string{"conversation_id", "sender", "kind", "content", "created_at"},
 			"properties": bson.M{
 				"conversation_id": bson.M{
 					"bsonType": "string",
 				},
-				"sender_id": bson.M{
-					"bsonType": "string",
+				"sender": bson.M{
+					"bsonType": "object",
+					"required": []string{"participant_id"},
+					"properties": bson.M{
+						"participant_id": bson.M{
+							"bsonType": "string",
+						},
+						"metadata": bson.M{
+							"anyOf": []bson.M{
+								{"bsonType": "object"},
+								{"bsonType": "null"},
+							},
+						},
+					},
 				},
-				"type": bson.M{
-					"enum": []string{"text", "system"},
+				"kind": bson.M{
+					"enum": []string{"general", "system"},
 				},
 				"content": bson.M{
 					"bsonType": "string",
