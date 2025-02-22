@@ -29,7 +29,7 @@ func TestConversationRepository_Create(t *testing.T) {
 			name: "valid",
 			prepData: func(t *testing.T) data.CreateConversation {
 				return data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 						{ParticipantID: "1111111111"},
 					},
@@ -51,7 +51,7 @@ func TestConversationRepository_Create(t *testing.T) {
 			name: "invalid with one participant",
 			prepData: func(t *testing.T) data.CreateConversation {
 				return data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 					},
 					Metadata: map[string]any{"hello": "world"},
@@ -80,7 +80,7 @@ func TestConversationRepository_Paginate(t *testing.T) {
 
 	cr := repository.NewConversation(client.Database("chatsavvy"))
 	conv1, err := cr.Create(t.Context(), data.CreateConversation{
-		Participants: []data.CreateParticipant{
+		Participants: []data.AddParticipant{
 			{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 			{ParticipantID: "1111111111"},
 		},
@@ -89,7 +89,7 @@ func TestConversationRepository_Paginate(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 
 	conv2, err := cr.Create(t.Context(), data.CreateConversation{
-		Participants: []data.CreateParticipant{
+		Participants: []data.AddParticipant{
 			{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "999999999"}},
 			{ParticipantID: "2222222222"},
 		},
@@ -98,7 +98,7 @@ func TestConversationRepository_Paginate(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 
 	conv3, err := cr.Create(t.Context(), data.CreateConversation{
-		Participants: []data.CreateParticipant{
+		Participants: []data.AddParticipant{
 			{ParticipantID: "2222222222"},
 			{ParticipantID: "3333333333"},
 			{ParticipantID: "1234567890"},
@@ -210,7 +210,7 @@ func TestConversationRepository_Find(t *testing.T) {
 
 	cr := repository.NewConversation(client.Database("chatsavvy"))
 	conv, err := cr.Create(t.Context(), data.CreateConversation{
-		Participants: []data.CreateParticipant{
+		Participants: []data.AddParticipant{
 			{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 			{ParticipantID: "1111111111"},
 		},
@@ -264,14 +264,14 @@ func TestConversationRepository_AddParticipant(t *testing.T) {
 	testCases := []struct {
 		name        string
 		setup       func(t *testing.T, cr *repository.Conversation) (*model.Conversation, *model.Conversation)
-		participant func(t *testing.T) data.CreateParticipant
+		participant func(t *testing.T) data.AddParticipant
 		expects     func(t *testing.T, resultConv *model.Conversation, expectedConv *model.Conversation, err error)
 	}{
 		{
 			name: "returns existing conversation if participants already exist",
 			setup: func(t *testing.T, cr *repository.Conversation) (*model.Conversation, *model.Conversation) {
 				conv1, err := cr.Create(t.Context(), data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
 						{ParticipantID: "1111111111"},
@@ -280,7 +280,7 @@ func TestConversationRepository_AddParticipant(t *testing.T) {
 				assert.NoError(t, err)
 
 				conv2, err := cr.Create(t.Context(), data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
 					},
@@ -289,8 +289,8 @@ func TestConversationRepository_AddParticipant(t *testing.T) {
 
 				return conv1, conv2
 			},
-			participant: func(t *testing.T) data.CreateParticipant {
-				return data.CreateParticipant{
+			participant: func(t *testing.T) data.AddParticipant {
+				return data.AddParticipant{
 					ParticipantID: "1111111111",
 				}
 			},
@@ -309,7 +309,7 @@ func TestConversationRepository_AddParticipant(t *testing.T) {
 			name: "adds participant to the conversation if participants do not exist",
 			setup: func(t *testing.T, cr *repository.Conversation) (*model.Conversation, *model.Conversation) {
 				conv, err := cr.Create(t.Context(), data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
 					},
@@ -318,8 +318,8 @@ func TestConversationRepository_AddParticipant(t *testing.T) {
 
 				return conv, conv
 			},
-			participant: func(t *testing.T) data.CreateParticipant {
-				return data.CreateParticipant{
+			participant: func(t *testing.T) data.AddParticipant {
+				return data.AddParticipant{
 					ParticipantID: "1111111111",
 				}
 			},
@@ -333,7 +333,7 @@ func TestConversationRepository_AddParticipant(t *testing.T) {
 			name: "returns existing conversation if participant exists with metadata",
 			setup: func(t *testing.T, cr *repository.Conversation) (*model.Conversation, *model.Conversation) {
 				conv1, err := cr.Create(t.Context(), data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
 						{ParticipantID: "1111111111"},
@@ -342,7 +342,7 @@ func TestConversationRepository_AddParticipant(t *testing.T) {
 				assert.NoError(t, err)
 
 				conv2, err := cr.Create(t.Context(), data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 						{ParticipantID: "1111111111"},
 					},
@@ -351,8 +351,8 @@ func TestConversationRepository_AddParticipant(t *testing.T) {
 
 				return conv1, conv2
 			},
-			participant: func(t *testing.T) data.CreateParticipant {
-				return data.CreateParticipant{
+			participant: func(t *testing.T) data.AddParticipant {
+				return data.AddParticipant{
 					ParticipantID: "2222222222",
 					Metadata:      map[string]any{"business_id": "999999999"},
 				}
@@ -372,7 +372,7 @@ func TestConversationRepository_AddParticipant(t *testing.T) {
 			name: "returns new conversation if participant exists with different metadata",
 			setup: func(t *testing.T, cr *repository.Conversation) (*model.Conversation, *model.Conversation) {
 				conv1, err := cr.Create(t.Context(), data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
 						{ParticipantID: "1111111111"},
@@ -381,7 +381,7 @@ func TestConversationRepository_AddParticipant(t *testing.T) {
 				assert.NoError(t, err)
 
 				conv2, err := cr.Create(t.Context(), data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 						{ParticipantID: "1111111111"},
 					},
@@ -390,8 +390,8 @@ func TestConversationRepository_AddParticipant(t *testing.T) {
 
 				return conv1, conv2
 			},
-			participant: func(t *testing.T) data.CreateParticipant {
-				return data.CreateParticipant{
+			participant: func(t *testing.T) data.AddParticipant {
+				return data.AddParticipant{
 					ParticipantID: "2222222222",
 					Metadata:      map[string]any{"business_id": "1111111111"},
 				}
@@ -426,14 +426,14 @@ func TestConversationRepository_DeleteParticipant(t *testing.T) {
 	testCases := []struct {
 		name        string
 		setup       func(t *testing.T, cr *repository.Conversation) *model.Conversation
-		participant func(t *testing.T) data.CreateParticipant
+		participant func(t *testing.T) data.DeleteParticipant
 		expects     func(t *testing.T, resultConv *model.Conversation, err error)
 	}{
 		{
 			name: "deletes participant from the conversation by participant id only",
 			setup: func(t *testing.T, cr *repository.Conversation) *model.Conversation {
 				conv1, err := cr.Create(t.Context(), data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
 						{ParticipantID: "1111111111"},
@@ -443,8 +443,8 @@ func TestConversationRepository_DeleteParticipant(t *testing.T) {
 
 				return conv1
 			},
-			participant: func(t *testing.T) data.CreateParticipant {
-				return data.CreateParticipant{
+			participant: func(t *testing.T) data.DeleteParticipant {
+				return data.DeleteParticipant{
 					ParticipantID: "1111111111",
 				}
 			},
@@ -458,7 +458,7 @@ func TestConversationRepository_DeleteParticipant(t *testing.T) {
 			name: "does not do anything if participant does not exist in the conversation",
 			setup: func(t *testing.T, cr *repository.Conversation) *model.Conversation {
 				conv, err := cr.Create(t.Context(), data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
 					},
@@ -467,8 +467,8 @@ func TestConversationRepository_DeleteParticipant(t *testing.T) {
 
 				return conv
 			},
-			participant: func(t *testing.T) data.CreateParticipant {
-				return data.CreateParticipant{
+			participant: func(t *testing.T) data.DeleteParticipant {
+				return data.DeleteParticipant{
 					ParticipantID: "1111111111",
 				}
 			},
@@ -481,7 +481,7 @@ func TestConversationRepository_DeleteParticipant(t *testing.T) {
 			name: "deletes participant from the conversation by participant id and metadata",
 			setup: func(t *testing.T, cr *repository.Conversation) *model.Conversation {
 				conv1, err := cr.Create(t.Context(), data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
 						{ParticipantID: "1111111111"},
@@ -491,8 +491,8 @@ func TestConversationRepository_DeleteParticipant(t *testing.T) {
 
 				return conv1
 			},
-			participant: func(t *testing.T) data.CreateParticipant {
-				return data.CreateParticipant{
+			participant: func(t *testing.T) data.DeleteParticipant {
+				return data.DeleteParticipant{
 					ParticipantID: "2222222222",
 					Metadata:      map[string]any{"business_id": "999999999"},
 				}
@@ -507,7 +507,7 @@ func TestConversationRepository_DeleteParticipant(t *testing.T) {
 			name: "does not delete participant if metadata does not match",
 			setup: func(t *testing.T, cr *repository.Conversation) *model.Conversation {
 				conv1, err := cr.Create(t.Context(), data.CreateConversation{
-					Participants: []data.CreateParticipant{
+					Participants: []data.AddParticipant{
 						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
 						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
 						{ParticipantID: "1111111111"},
@@ -517,8 +517,8 @@ func TestConversationRepository_DeleteParticipant(t *testing.T) {
 
 				return conv1
 			},
-			participant: func(t *testing.T) data.CreateParticipant {
-				return data.CreateParticipant{
+			participant: func(t *testing.T) data.DeleteParticipant {
+				return data.DeleteParticipant{
 					ParticipantID: "2222222222",
 					Metadata:      map[string]any{"business_id": "1111111111"},
 				}

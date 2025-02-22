@@ -3,8 +3,8 @@ package data
 import "github.com/go-playground/validator/v10"
 
 type CreateConversation struct {
-	Participants []CreateParticipant `validate:"required,min=2,max=10"`
-	Metadata     map[string]any      `validate:"omitempty"`
+	Participants []AddParticipant `validate:"required,min=2,max=10"`
+	Metadata     map[string]any   `validate:"omitempty"`
 }
 
 func (c CreateConversation) Validate() error {

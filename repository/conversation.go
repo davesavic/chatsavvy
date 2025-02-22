@@ -20,7 +20,7 @@ func NewConversation(db *mongo.Database) *Conversation {
 	return &Conversation{db: db}
 }
 
-func (c Conversation) AddParticipant(ctx context.Context, conversationID string, d data.CreateParticipant) (*model.Conversation, error) {
+func (c Conversation) AddParticipant(ctx context.Context, conversationID string, d data.AddParticipant) (*model.Conversation, error) {
 	if err := d.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate create participant data: %w", err)
 	}
@@ -31,10 +31,10 @@ func (c Conversation) AddParticipant(ctx context.Context, conversationID string,
 	}
 
 	thisConversationParticipants := thisConversation.Participants
-	participantsToCheck := make([]data.CreateParticipant, 0, len(thisConversationParticipants)+1)
+	participantsToCheck := make([]data.AddParticipant, 0, len(thisConversationParticipants)+1)
 	participantsToCheck = append(participantsToCheck, d)
 	for _, p := range thisConversationParticipants {
-		participantsToCheck = append(participantsToCheck, data.CreateParticipant{
+		participantsToCheck = append(participantsToCheck, data.AddParticipant{
 			ParticipantID: p.ParticipantID,
 			Metadata:      p.Metadata,
 		})
@@ -84,7 +84,7 @@ func (c Conversation) AddParticipant(ctx context.Context, conversationID string,
 	return &conversation, nil
 }
 
-func (c Conversation) DeleteParticipant(ctx context.Context, conversationID string, d data.CreateParticipant) (*model.Conversation, error) {
+func (c Conversation) DeleteParticipant(ctx context.Context, conversationID string, d data.DeleteParticipant) (*model.Conversation, error) {
 	conversationIDHex, err := bson.ObjectIDFromHex(conversationID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse conversation id: %w", err)
@@ -127,7 +127,7 @@ func (c Conversation) DeleteParticipant(ctx context.Context, conversationID stri
 	return &conversation, nil
 }
 
-func (c Conversation) conversationWithParticipantsExists(ctx context.Context, participants []data.CreateParticipant) (bool, *model.Conversation, error) {
+func (c Conversation) conversationWithParticipantsExists(ctx context.Context, participants []data.AddParticipant) (bool, *model.Conversation, error) {
 	participantCount := len(participants)
 
 	participantsFilters := make([]bson.M, 0, participantCount)

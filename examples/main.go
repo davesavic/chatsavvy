@@ -22,7 +22,7 @@ func main() {
 	}
 
 	cs.Conversation.Create(context.Background(), csdata.CreateConversation{
-		Participants: []csdata.CreateParticipant{
+		Participants: []csdata.AddParticipant{
 			{ParticipantID: "1234567890"},
 			{ParticipantID: "0987654321"},
 			{ParticipantID: "1357924680", Metadata: map[string]any{"business_id": "1234567890"}},
@@ -38,14 +38,14 @@ func main() {
 
 	cs.Conversation.Find(context.Background(), "1234567890")
 
-	cs.Conversation.AddParticipant(context.Background(), "1234567890", csdata.CreateParticipant{
+	cs.Conversation.AddParticipant(context.Background(), "1234567890", csdata.AddParticipant{
 		ParticipantID: "0987654321",
 		Metadata: map[string]any{
 			"business_id": "1234567891",
 		},
 	})
 
-	cs.Conversation.DeleteParticipant(context.Background(), "1234567890", csdata.CreateParticipant{})
+	cs.Conversation.DeleteParticipant(context.Background(), "1234567890", csdata.DeleteParticipant{})
 
 	// TODO:
 
