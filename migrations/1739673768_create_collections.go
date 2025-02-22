@@ -5,10 +5,56 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 func Up1739673768(ctx context.Context, db *mongo.Database) error {
-	if err := db.CreateCollection(ctx, "conversations"); err != nil {
+	conversationsValidator := bson.M{
+		"$jsonSchema": bson.M{
+			"bsonType": "object",
+			"required": []string{"participants", "created_at", "updated_at"},
+			"properties": bson.M{
+				"participants": bson.M{
+					"bsonType": "array",
+					"items": bson.M{
+						"bsonType": "object",
+						"required": []string{"participant_id"},
+						"properties": bson.M{
+							"participant_id": bson.M{
+								"bsonType": "string",
+							},
+							"metadata": bson.M{
+								"anyOf": []bson.M{
+									{"bsonType": "object"},
+									{"bsonType": "null"},
+								},
+							},
+							"deleted_at": bson.M{
+								"anyOf": []bson.M{
+									{"bsonType": "date"},
+									{"bsonType": "null"},
+								},
+							},
+						},
+					},
+				},
+				"metadata": bson.M{
+					"anyOf": []bson.M{
+						{"bsonType": "object"},
+						{"bsonType": "null"},
+					},
+				},
+				"created_at": bson.M{
+					"bsonType": "date",
+				},
+				"updated_at": bson.M{
+					"bsonType": "date",
+				},
+			},
+		},
+	}
+
+	if err := db.CreateCollection(ctx, "conversations", options.CreateCollection().SetValidator(conversationsValidator)); err != nil {
 		return err
 	}
 
@@ -19,9 +65,57 @@ func Up1739673768(ctx context.Context, db *mongo.Database) error {
 		},
 	})
 
-	if err := db.CreateCollection(ctx, "messages"); err != nil {
+	messagesValidator := bson.M{
+		"$jsonSchema": bson.M{
+			"bsonType": "object",
+			"required": []string{"conversation_id", "sender_id", "type", "content", "created_at"},
+			"properties": bson.M{
+				"conversation_id": bson.M{
+					"bsonType": "string",
+				},
+				"sender_id": bson.M{
+					"bsonType": "string",
+				},
+				"type": bson.M{
+					"enum": []string{"text", "system"},
+				},
+				"content": bson.M{
+					"bsonType": "string",
+				},
+				"reactions": bson.M{
+					"bsonType": "array",
+					"items": bson.M{
+						"bsonType": "object",
+						"properties": bson.M{
+							"emoji": bson.M{
+								"bsonType": "string",
+							},
+							"participant_ids": bson.M{
+								"bsonType": "array",
+								"items": bson.M{
+									"bsonType": "string",
+								},
+							},
+						},
+					},
+				},
+				"created_at": bson.M{
+					"bsonType": "date",
+				},
+			},
+		},
+	}
+
+	if err := db.CreateCollection(ctx, "messages", options.CreateCollection().SetValidator(messagesValidator)); err != nil {
 		return err
 	}
+
+	db.Collection("messages").Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "conversation_id", Value: 1},
+			{Key: "created_at", Value: -1},
+		},
+	})
 
 	return nil
 }
