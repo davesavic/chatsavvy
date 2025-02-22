@@ -421,3 +421,130 @@ func TestConversationRepository_AddParticipant(t *testing.T) {
 		})
 	}
 }
+
+func TestConversationRepository_DeleteParticipant(t *testing.T) {
+	testCases := []struct {
+		name        string
+		setup       func(t *testing.T, cr *repository.Conversation) *model.Conversation
+		participant func(t *testing.T) data.CreateParticipant
+		expects     func(t *testing.T, resultConv *model.Conversation, err error)
+	}{
+		{
+			name: "deletes participant from the conversation by participant id only",
+			setup: func(t *testing.T, cr *repository.Conversation) *model.Conversation {
+				conv1, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.CreateParticipant{
+						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
+						{ParticipantID: "1111111111"},
+					},
+				})
+				assert.NoError(t, err)
+
+				return conv1
+			},
+			participant: func(t *testing.T) data.CreateParticipant {
+				return data.CreateParticipant{
+					ParticipantID: "1111111111",
+				}
+			},
+			expects: func(t *testing.T, resultConv *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, resultConv.Participants, 3)
+				assert.NotNil(t, resultConv.Participants[2].DeletedAt)
+			},
+		},
+		{
+			name: "does not do anything if participant does not exist in the conversation",
+			setup: func(t *testing.T, cr *repository.Conversation) *model.Conversation {
+				conv, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.CreateParticipant{
+						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
+					},
+				})
+				assert.NoError(t, err)
+
+				return conv
+			},
+			participant: func(t *testing.T) data.CreateParticipant {
+				return data.CreateParticipant{
+					ParticipantID: "1111111111",
+				}
+			},
+			expects: func(t *testing.T, resultConv *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, resultConv.Participants, 2)
+			},
+		},
+		{
+			name: "deletes participant from the conversation by participant id and metadata",
+			setup: func(t *testing.T, cr *repository.Conversation) *model.Conversation {
+				conv1, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.CreateParticipant{
+						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
+						{ParticipantID: "1111111111"},
+					},
+				})
+				assert.NoError(t, err)
+
+				return conv1
+			},
+			participant: func(t *testing.T) data.CreateParticipant {
+				return data.CreateParticipant{
+					ParticipantID: "2222222222",
+					Metadata:      map[string]any{"business_id": "999999999"},
+				}
+			},
+			expects: func(t *testing.T, resultConv *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, resultConv.Participants, 3)
+				assert.NotNil(t, resultConv.Participants[1].DeletedAt)
+			},
+		},
+		{
+			name: "does not delete participant if metadata does not match",
+			setup: func(t *testing.T, cr *repository.Conversation) *model.Conversation {
+				conv1, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.CreateParticipant{
+						{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+						{ParticipantID: "2222222222", Metadata: map[string]any{"business_id": "999999999"}},
+						{ParticipantID: "1111111111"},
+					},
+				})
+				assert.NoError(t, err)
+
+				return conv1
+			},
+			participant: func(t *testing.T) data.CreateParticipant {
+				return data.CreateParticipant{
+					ParticipantID: "2222222222",
+					Metadata:      map[string]any{"business_id": "1111111111"},
+				}
+			},
+			expects: func(t *testing.T, resultConv *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, resultConv.Participants, 3)
+				assert.Nil(t, resultConv.Participants[1].DeletedAt)
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			client := testutil.MustConnectMongoDB(t, os.Getenv("MONGODB_URI"))
+			t.Cleanup(func() {
+				client.Disconnect(nil)
+			})
+
+			cr := repository.NewConversation(client.Database("chatsavvy"))
+			conv := tt.setup(t, cr)
+
+			resultConv, err := cr.DeleteParticipant(t.Context(), conv.ID.Hex(), tt.participant(t))
+			assert.NoError(t, err)
+
+			tt.expects(t, resultConv, err)
+		})
+	}
+}

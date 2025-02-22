@@ -45,7 +45,7 @@ func main() {
 		},
 	})
 
-	cs.Conversation.DeleteParticipant(context.Background(), "1234567890", "0987654321")
+	cs.Conversation.DeleteParticipant(context.Background(), "1234567890", csdata.CreateParticipant{})
 
 	// TODO:
 

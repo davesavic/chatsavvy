@@ -84,7 +84,7 @@ func (c Conversation) AddParticipant(ctx context.Context, conversationID string,
 	return &conversation, nil
 }
 
-func (c Conversation) DeleteParticipant(ctx context.Context, conversationID, participantID string) (*model.Conversation, error) {
+func (c Conversation) DeleteParticipant(ctx context.Context, conversationID string, d data.CreateParticipant) (*model.Conversation, error) {
 	conversationIDHex, err := bson.ObjectIDFromHex(conversationID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse conversation id: %w", err)
@@ -104,7 +104,8 @@ func (c Conversation) DeleteParticipant(ctx context.Context, conversationID, par
 
 	arrayFilters := []any{
 		bson.M{
-			"participant.participant_id": participantID,
+			"participant.participant_id": d.ParticipantID,
+			"participant.metadata":       d.Metadata,
 		},
 	}
 
