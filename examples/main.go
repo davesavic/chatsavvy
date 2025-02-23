@@ -55,12 +55,27 @@ func main() {
 		Content: "Hello, World!",
 	})
 
-	// TODO:
-
 	cs.Message.Paginate(context.Background(), csdata.PaginateMessages{
 		ConversationID: "1234567890",
 		Page:           1,
 		PerPage:        10,
+	})
+
+	cs.Message.LoadMessages(context.Background(), csdata.LoadMessages{
+		ConversationID: "1234567890",
+		LastMessageID:  "0987654321",
+		PerPage:        10,
+	})
+
+	cs.Message.ToggleReaction(context.Background(), csdata.ToggleReaction{
+		MessageID: "0987654321",
+		Emoji:     ":thumbsup:",
+		Participant: csdata.ReactionParticipant{
+			ParticipantID: "1234567890",
+			Metadata: map[string]any{
+				"business_id": "1234567891",
+			},
+		},
 	})
 
 	// cs.Conversation.Delete(context.Background(), "1234567890")

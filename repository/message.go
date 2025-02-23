@@ -25,6 +25,8 @@ func NewMessage(db *mongo.Database, conversation *Conversation) *Message {
 	}
 }
 
+// Create creates a new message in the conversation.
+// It returns the created message or an error.
 func (m Message) Create(ctx context.Context, conversationID string, d data.CreateMessage) (*model.Message, error) {
 	if err := d.Validate(); err != nil {
 		return nil, err
@@ -63,6 +65,8 @@ func (m Message) Create(ctx context.Context, conversationID string, d data.Creat
 	return &message, nil
 }
 
+// Paginate fetches messages in the conversation.
+// It returns the messages and the total number of messages in the conversation or an error.
 func (m Message) Paginate(ctx context.Context, d data.PaginateMessages) ([]model.Message, uint, error) {
 	if err := d.Validate(); err != nil {
 		return nil, 0, err
@@ -95,6 +99,9 @@ func (m Message) Paginate(ctx context.Context, d data.PaginateMessages) ([]model
 	return messages, uint(total), nil
 }
 
+// LoadMessages fetches messages in the conversation.
+// It differs from Paginate in that it fetches messages older than the last message id provided.
+// It returns the messages or an error.
 func (m Message) LoadMessages(ctx context.Context, d data.LoadMessages) ([]model.Message, error) {
 	if err := d.Validate(); err != nil {
 		return nil, err
@@ -131,6 +138,8 @@ func (m Message) LoadMessages(ctx context.Context, d data.LoadMessages) ([]model
 	return messages, nil
 }
 
+// ToggleReaction toggles a reaction on the message for the participant.
+// It returns the updated message or an error.
 func (m Message) ToggleReaction(ctx context.Context, d data.ToggleReaction) (*model.Message, error) {
 	if err := d.Validate(); err != nil {
 		return nil, err
@@ -145,13 +154,10 @@ func (m Message) ToggleReaction(ctx context.Context, d data.ToggleReaction) (*mo
 		return nil, fmt.Errorf("failed to fetch the message: %w", err)
 	}
 
-	// Logic required to toggle the reaction.
-	// 1. If the message has already been reacted to with the emoji.
 	reactionIndex := slices.IndexFunc(message.Reactions, func(r model.Reaction) bool {
 		return r.Emoji == d.Emoji
 	})
 
-	// 1a. If yes
 	if reactionIndex != -1 {
 		reaction := message.Reactions[reactionIndex]
 
@@ -171,9 +177,6 @@ func (m Message) ToggleReaction(ctx context.Context, d data.ToggleReaction) (*mo
 		message.Reactions[reactionIndex] = reaction
 	}
 
-	// 1b. If the participant HAS NOT reacted with the emoji, add the reaction.
-	// 1c. If the participant HAS reacted with the emoji, remove the participant from the reaction.
-	// 2. If no, add the reaction with the participant.
 	if reactionIndex == -1 {
 		reaction := model.Reaction{
 			Emoji: d.Emoji,
@@ -187,7 +190,6 @@ func (m Message) ToggleReaction(ctx context.Context, d data.ToggleReaction) (*mo
 		message.Reactions = append(message.Reactions, reaction)
 	}
 
-	// 3. Remove any reactions that have no participants.
 	message.Reactions = slices.DeleteFunc(message.Reactions, func(r model.Reaction) bool {
 		return len(r.Participants) == 0
 	})
@@ -221,7 +223,6 @@ func mapsEqual(a, b map[string]any) bool {
 }
 
 func valuesEqual(a, b any) bool {
-	// Try to compare known types
 	switch va := a.(type) {
 	case int:
 		vb, ok := b.(int)
@@ -238,9 +239,7 @@ func valuesEqual(a, b any) bool {
 	case map[string]any:
 		vb, ok := b.(map[string]any)
 		return ok && mapsEqual(va, vb)
-	// Add additional cases as needed.
 	default:
-		// If the type isn't one we expect, return false or handle accordingly.
 		return false
 	}
 }

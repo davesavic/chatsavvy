@@ -20,6 +20,8 @@ func NewConversation(db *mongo.Database) *Conversation {
 	return &Conversation{db: db}
 }
 
+// AddParticipant adds a participant to the conversation.
+// It returns the updated conversation or an error.
 func (c Conversation) AddParticipant(ctx context.Context, conversationID string, d data.AddParticipant) (*model.Conversation, error) {
 	if err := d.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate create participant data: %w", err)
@@ -84,6 +86,8 @@ func (c Conversation) AddParticipant(ctx context.Context, conversationID string,
 	return &conversation, nil
 }
 
+// DeleteParticipant deletes a participant from the conversation.
+// It returns the updated conversation or an error.
 func (c Conversation) DeleteParticipant(ctx context.Context, conversationID string, d data.DeleteParticipant) (*model.Conversation, error) {
 	conversationIDHex, err := bson.ObjectIDFromHex(conversationID)
 	if err != nil {
@@ -127,6 +131,8 @@ func (c Conversation) DeleteParticipant(ctx context.Context, conversationID stri
 	return &conversation, nil
 }
 
+// conversationWithParticipantsExists checks if a conversation with the participants exists.
+// It returns a boolean indicating if the conversation exists, the conversation or an error.
 func (c Conversation) conversationWithParticipantsExists(ctx context.Context, participants []data.AddParticipant) (bool, *model.Conversation, error) {
 	participantCount := len(participants)
 
@@ -170,6 +176,8 @@ func (c Conversation) conversationWithParticipantsExists(ctx context.Context, pa
 	return true, &existingConversation, nil
 }
 
+// Create creates a conversation with the participants.
+// It returns the created conversation or an error.
 func (c Conversation) Create(ctx context.Context, d data.CreateConversation) (*model.Conversation, error) {
 	if err := d.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate create conversation data: %w", err)
@@ -202,6 +210,8 @@ func (c Conversation) Create(ctx context.Context, d data.CreateConversation) (*m
 	return &conversation, nil
 }
 
+// Find fetches the conversation by id.
+// It returns the conversation or an error.
 func (c Conversation) Find(ctx context.Context, id string) (*model.Conversation, error) {
 	obID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
@@ -220,6 +230,8 @@ func (c Conversation) Find(ctx context.Context, id string) (*model.Conversation,
 	return &conversation, nil
 }
 
+// Paginate fetches conversations for the participant.
+// It returns the conversations and the total number of conversations or an error.
 func (c Conversation) Paginate(ctx context.Context, d data.PaginateConversations) ([]model.Conversation, uint, error) {
 	if err := d.Validate(); err != nil {
 		return nil, 0, fmt.Errorf("failed to validate paginate conversations data: %w", err)
@@ -253,6 +265,8 @@ func (c Conversation) Paginate(ctx context.Context, d data.PaginateConversations
 	return conversations, uint(total), nil
 }
 
+// UpdateLastMessage updates the last message in the conversation.
+// It returns an error.
 func (c Conversation) UpdateLastMessage(ctx context.Context, conversationID string, message model.Message) error {
 	conversationIDHex, err := bson.ObjectIDFromHex(conversationID)
 	if err != nil {
