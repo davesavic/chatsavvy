@@ -9,6 +9,7 @@ import (
 	"github.com/davesavic/chatsavvy/model"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type Message struct {
@@ -62,7 +63,35 @@ func (m Message) Create(ctx context.Context, conversationID string, d data.Creat
 }
 
 func (m Message) Paginate(ctx context.Context, d data.PaginateMessages) ([]model.Message, uint, error) {
-	return nil, 0, nil
+	if err := d.Validate(); err != nil {
+		return nil, 0, err
+	}
+
+	conv, err := m.conversation.Find(ctx, d.ConversationID)
+	if err != nil || conv == nil {
+		return nil, 0, fmt.Errorf("failed to fetch the conversation: %w", err)
+	}
+
+	skip := (d.Page - 1) * d.PerPage
+	opts := options.Find().SetSort(bson.M{"created_at": -1}).SetSkip(int64(skip)).SetLimit(int64(d.PerPage))
+
+	cursor, err := m.db.Collection("messages").Find(ctx, bson.M{"conversation_id": d.ConversationID}, opts)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to fetch messages: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var messages []model.Message
+	if err = cursor.All(ctx, &messages); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode messages: %w", err)
+	}
+
+	total, err := m.db.Collection("messages").CountDocuments(ctx, bson.M{"conversation_id": d.ConversationID})
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count messages: %w", err)
+	}
+
+	return messages, uint(total), nil
 }
 
 func (m Message) ToggleReaction(ctx context.Context) error {
