@@ -94,6 +94,42 @@ func (m Message) Paginate(ctx context.Context, d data.PaginateMessages) ([]model
 	return messages, uint(total), nil
 }
 
+func (m Message) LoadMessages(ctx context.Context, d data.LoadMessages) ([]model.Message, error) {
+	if err := d.Validate(); err != nil {
+		return nil, err
+	}
+
+	conv, err := m.conversation.Find(ctx, d.ConversationID)
+	if err != nil || conv == nil {
+		return nil, fmt.Errorf("failed to fetch the conversation: %w", err)
+	}
+
+	messageObID, err := bson.ObjectIDFromHex(d.LastMessageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse the last message id: %w", err)
+	}
+
+	filter := bson.M{
+		"conversation_id": d.ConversationID,
+		"_id":             bson.M{"$lt": messageObID},
+	}
+
+	opts := options.Find().SetSort(bson.M{"_id": -1}).SetLimit(int64(d.PerPage))
+
+	cursor, err := m.db.Collection("messages").Find(ctx, filter, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch messages: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var messages []model.Message
+	if err = cursor.All(ctx, &messages); err != nil {
+		return nil, fmt.Errorf("failed to decode messages: %w", err)
+	}
+
+	return messages, nil
+}
+
 func (m Message) ToggleReaction(ctx context.Context) error {
 	return nil
 }

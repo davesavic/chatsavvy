@@ -19,10 +19,20 @@ func (c CreateMessage) Validate() error {
 
 type PaginateMessages struct {
 	ConversationID string `validate:"required,min=1,max=100" bson:"conversation_id"`
-	Page           int    `validate:"required,min=1" bson:"page"`
-	PerPage        int    `validate:"required,min=1,max=100" bson:"per_page"`
+	Page           uint   `validate:"required,min=1" bson:"page"`
+	PerPage        uint   `validate:"required,min=1,max=100" bson:"per_page"`
 }
 
 func (c PaginateMessages) Validate() error {
+	return validator.New().Struct(c)
+}
+
+type LoadMessages struct {
+	ConversationID string `validate:"required,min=1,max=100" bson:"conversation_id"`
+	LastMessageID  string `validate:"required,min=1,max=100" bson:"last_message_id"`
+	PerPage        uint   `validate:"required,min=1,max=100" bson:"per_page"`
+}
+
+func (c LoadMessages) Validate() error {
 	return validator.New().Struct(c)
 }

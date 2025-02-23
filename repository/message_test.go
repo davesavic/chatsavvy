@@ -235,3 +235,133 @@ func TestMessageRepository_Paginate(t *testing.T) {
 		})
 	}
 }
+
+func TestMessageRepository_LoadMessages(t *testing.T) {
+	testCases := []struct {
+		name     string
+		setup    func(t *testing.T, cr *repository.Conversation, mr *repository.Message) (*model.Conversation, *model.Message)
+		loadData func(t *testing.T, conv *model.Conversation, lastMsg *model.Message) data.LoadMessages
+		expects  func(t *testing.T, msgs []model.Message, err error)
+	}{
+		{
+			name: "invalid load messages data",
+			setup: func(t *testing.T, cr *repository.Conversation, mr *repository.Message) (*model.Conversation, *model.Message) {
+				// No setup needed; we supply invalid data (e.g. empty conversation ID)
+				return nil, nil
+			},
+			loadData: func(t *testing.T, conv *model.Conversation, lastMsg *model.Message) data.LoadMessages {
+				return data.LoadMessages{
+					ConversationID: "",
+					LastMessageID:  "",
+					PerPage:        10,
+				}
+			},
+			expects: func(t *testing.T, msgs []model.Message, err error) {
+				assert.Error(t, err)
+			},
+		},
+		{
+			name: "conversation not found",
+			setup: func(t *testing.T, cr *repository.Conversation, mr *repository.Message) (*model.Conversation, *model.Message) {
+				return nil, nil
+			},
+			loadData: func(t *testing.T, conv *model.Conversation, lastMsg *model.Message) data.LoadMessages {
+				return data.LoadMessages{
+					ConversationID: bson.NewObjectID().Hex(),
+					LastMessageID:  bson.NewObjectID().Hex(),
+					PerPage:        10,
+				}
+			},
+			expects: func(t *testing.T, msgs []model.Message, err error) {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to fetch the conversation")
+			},
+		},
+		{
+			name: "invalid last message id",
+			setup: func(t *testing.T, cr *repository.Conversation, mr *repository.Message) (*model.Conversation, *model.Message) {
+				conv, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.AddParticipant{{ParticipantID: "123"}, {ParticipantID: "456"}},
+				})
+				assert.NoError(t, err)
+				return conv, nil
+			},
+			loadData: func(t *testing.T, conv *model.Conversation, lastMsg *model.Message) data.LoadMessages {
+				return data.LoadMessages{
+					ConversationID: conv.ID.Hex(),
+					LastMessageID:  "invalid_hex",
+					PerPage:        10,
+				}
+			},
+			expects: func(t *testing.T, msgs []model.Message, err error) {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to parse the last message id")
+			},
+		},
+		{
+			name: "loads messages successfully",
+			setup: func(t *testing.T, cr *repository.Conversation, mr *repository.Message) (*model.Conversation, *model.Message) {
+				conv, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.AddParticipant{
+						{ParticipantID: "1234567890"},
+						{ParticipantID: "0987654321"},
+					},
+				})
+				assert.NoError(t, err)
+
+				for i := 0; i < 3; i++ {
+					_, err := mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+						Kind: "general",
+						Sender: data.MessageSender{
+							ParticipantID: "1234567890",
+						},
+						Content: fmt.Sprintf("Message %d", i),
+					})
+					assert.NoError(t, err)
+					time.Sleep(1 * time.Millisecond)
+				}
+				lastMsg, err := mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+					Kind: "general",
+					Sender: data.MessageSender{
+						ParticipantID: "1234567890",
+					},
+					Content: "Latest message",
+				})
+				assert.NoError(t, err)
+				return conv, lastMsg
+			},
+			loadData: func(t *testing.T, conv *model.Conversation, lastMsg *model.Message) data.LoadMessages {
+				return data.LoadMessages{
+					ConversationID: conv.ID.Hex(),
+					LastMessageID:  lastMsg.ID.Hex(),
+					PerPage:        2,
+				}
+			},
+			expects: func(t *testing.T, msgs []model.Message, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, msgs, 2)
+
+				if len(msgs) == 2 {
+					assert.True(t, msgs[0].ID.Hex() > msgs[1].ID.Hex(), "expected messages in descending order")
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := testutil.MustConnectMongoDB(t, os.Getenv("MONGODB_URI"))
+			t.Cleanup(func() {
+				client.Disconnect(t.Context())
+			})
+
+			cr := repository.NewConversation(client.Database("chatsavvy"))
+			mr := repository.NewMessage(client.Database("chatsavvy"), cr)
+
+			conv, lastMsg := tc.setup(t, cr, mr)
+			loadData := tc.loadData(t, conv, lastMsg)
+			msgs, err := mr.LoadMessages(t.Context(), loadData)
+			tc.expects(t, msgs, err)
+		})
+	}
+}
