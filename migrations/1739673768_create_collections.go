@@ -121,14 +121,26 @@ func Up1739673768(ctx context.Context, db *mongo.Database) error {
 					"bsonType": "array",
 					"items": bson.M{
 						"bsonType": "object",
+						"required": []string{"participants", "emoji"},
 						"properties": bson.M{
 							"emoji": bson.M{
 								"bsonType": "string",
 							},
-							"participant_ids": bson.M{
+							"participants": bson.M{
 								"bsonType": "array",
 								"items": bson.M{
-									"bsonType": "string",
+									"bsonType": "object",
+									"properties": bson.M{
+										"participant_id": bson.M{
+											"bsonType": "string",
+										},
+										"metadata": bson.M{
+											"anyOf": []bson.M{
+												{"bsonType": "object"},
+												{"bsonType": "null"},
+											},
+										},
+									},
 								},
 							},
 						},

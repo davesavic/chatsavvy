@@ -17,5 +17,16 @@ type Message struct {
 	Sender         MessageSender `bson:"sender"`
 	Kind           string        `bson:"kind"`
 	Content        string        `bson:"content"`
+	Reactions      []Reaction    `bson:"reactions"`
 	CreatedAt      time.Time     `bson:"created_at"`
+}
+
+type ReactionParticipant struct {
+	ParticipantID string         `bson:"participant_id"`
+	Metadata      map[string]any `bson:"metadata"`
+}
+
+type Reaction struct {
+	Emoji        string                `bson:"emoji"`
+	Participants []ReactionParticipant `bson:"participants"`
 }

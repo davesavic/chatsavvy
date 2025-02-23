@@ -365,3 +365,165 @@ func TestMessageRepository_LoadMessages(t *testing.T) {
 		})
 	}
 }
+
+func TestMessageRepository_ToggleReaction(t *testing.T) {
+	testCases := []struct {
+		name    string
+		setup   func(t *testing.T, cr *repository.Conversation, mr *repository.Message) (*model.Conversation, *model.Message)
+		data    func(t *testing.T, conv *model.Conversation, msg *model.Message) data.ToggleReaction
+		expects func(t *testing.T, msg *model.Message, err error)
+	}{
+		{
+			name: "it sets a reaction on a message if it does not exist",
+			setup: func(t *testing.T, cr *repository.Conversation, mr *repository.Message) (*model.Conversation, *model.Message) {
+				conv, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.AddParticipant{{ParticipantID: "123"}, {ParticipantID: "456"}},
+				})
+				assert.NoError(t, err)
+
+				msg, err := mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+					Kind: "general",
+					Sender: data.MessageSender{
+						ParticipantID: "123",
+					},
+					Content: "Hello, World!",
+				})
+				assert.NoError(t, err)
+
+				return conv, msg
+			},
+			data: func(t *testing.T, conv *model.Conversation, msg *model.Message) data.ToggleReaction {
+				return data.ToggleReaction{
+					MessageID:   msg.ID.Hex(),
+					Emoji:       ":thumbsup:",
+					Participant: data.ReactionParticipant{ParticipantID: "123"},
+				}
+			},
+			expects: func(t *testing.T, msg *model.Message, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, msg.Reactions, 1)
+				assert.Equal(t, ":thumbsup:", msg.Reactions[0].Emoji)
+				assert.Len(t, msg.Reactions[0].Participants, 1)
+				assert.Equal(t, "123", msg.Reactions[0].Participants[0].ParticipantID)
+			},
+		},
+		{
+			name: "it removes a reaction on a message if it exists",
+			setup: func(t *testing.T, cr *repository.Conversation, mr *repository.Message) (*model.Conversation, *model.Message) {
+				conv, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.AddParticipant{{ParticipantID: "123"}, {ParticipantID: "456"}},
+				})
+				assert.NoError(t, err)
+
+				msg, err := mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+					Kind: "general",
+					Sender: data.MessageSender{
+						ParticipantID: "123",
+					},
+					Content: "Hello, World!",
+				})
+				assert.NoError(t, err)
+
+				msg, err = mr.ToggleReaction(t.Context(), data.ToggleReaction{
+					MessageID:   msg.ID.Hex(),
+					Emoji:       ":thumbsup:",
+					Participant: data.ReactionParticipant{ParticipantID: "123"},
+				})
+				assert.NoError(t, err)
+
+				return conv, msg
+			},
+			data: func(t *testing.T, conv *model.Conversation, msg *model.Message) data.ToggleReaction {
+				return data.ToggleReaction{
+					MessageID:   msg.ID.Hex(),
+					Emoji:       ":thumbsup:",
+					Participant: data.ReactionParticipant{ParticipantID: "123"},
+				}
+			},
+			expects: func(t *testing.T, msg *model.Message, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, msg.Reactions, 0)
+			},
+		},
+		{
+			name: "message not found",
+			setup: func(t *testing.T, cr *repository.Conversation, mr *repository.Message) (*model.Conversation, *model.Message) {
+				conv, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.AddParticipant{{ParticipantID: "123"}, {ParticipantID: "456"}},
+				})
+				assert.NoError(t, err)
+				return conv, nil
+			},
+			data: func(t *testing.T, conv *model.Conversation, msg *model.Message) data.ToggleReaction {
+				return data.ToggleReaction{
+					MessageID:   bson.NewObjectID().Hex(),
+					Emoji:       ":thumbsup:",
+					Participant: data.ReactionParticipant{ParticipantID: "123"},
+				}
+			},
+			expects: func(t *testing.T, msg *model.Message, err error) {
+				assert.Error(t, err)
+				assert.Nil(t, msg)
+				assert.Contains(t, err.Error(), "failed to fetch the message")
+			},
+		},
+		{
+			name: "adds a reaction to a message with existing same reaction",
+			setup: func(t *testing.T, cr *repository.Conversation, mr *repository.Message) (*model.Conversation, *model.Message) {
+				conv, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.AddParticipant{{ParticipantID: "123"}, {ParticipantID: "456"}},
+				})
+				assert.NoError(t, err)
+
+				msg, err := mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+					Kind: "general",
+					Sender: data.MessageSender{
+						ParticipantID: "123",
+					},
+					Content: "Hello, World!",
+				})
+				assert.NoError(t, err)
+				time.Sleep(1 * time.Millisecond)
+
+				msg, err = mr.ToggleReaction(t.Context(), data.ToggleReaction{
+					MessageID:   msg.ID.Hex(),
+					Emoji:       ":thumbsup:",
+					Participant: data.ReactionParticipant{ParticipantID: "456"},
+				})
+				assert.NoError(t, err)
+
+				return conv, msg
+			},
+			data: func(t *testing.T, conv *model.Conversation, msg *model.Message) data.ToggleReaction {
+				return data.ToggleReaction{
+					MessageID:   msg.ID.Hex(),
+					Emoji:       ":thumbsup:",
+					Participant: data.ReactionParticipant{ParticipantID: "123"},
+				}
+			},
+			expects: func(t *testing.T, msg *model.Message, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, msg.Reactions, 1)
+				assert.Equal(t, ":thumbsup:", msg.Reactions[0].Emoji)
+				assert.Len(t, msg.Reactions[0].Participants, 2)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := testutil.MustConnectMongoDB(t, os.Getenv("MONGODB_URI"))
+			t.Cleanup(func() {
+				client.Disconnect(nil)
+			})
+
+			cr := repository.NewConversation(client.Database("chatsavvy"))
+			mr := repository.NewMessage(client.Database("chatsavvy"), cr)
+
+			conv, msg := tc.setup(t, cr, mr)
+			data := tc.data(t, conv, msg)
+			msg, err := mr.ToggleReaction(t.Context(), data)
+			tc.expects(t, msg, err)
+		})
+	}
+}

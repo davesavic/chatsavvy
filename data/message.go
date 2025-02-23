@@ -36,3 +36,18 @@ type LoadMessages struct {
 func (c LoadMessages) Validate() error {
 	return validator.New().Struct(c)
 }
+
+type ReactionParticipant struct {
+	ParticipantID string         `validate:"required,min=1,max=100" bson:"participant_id"`
+	Metadata      map[string]any `validate:"omitempty" bson:"metadata"`
+}
+
+type ToggleReaction struct {
+	MessageID   string              `validate:"required,min=1,max=100" bson:"message_id"`
+	Emoji       string              `validate:"required,min=1,max=100" bson:"emoji"`
+	Participant ReactionParticipant `validate:"required" bson:"participant"`
+}
+
+func (c ToggleReaction) Validate() error {
+	return validator.New().Struct(c)
+}
