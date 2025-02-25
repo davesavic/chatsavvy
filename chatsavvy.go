@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/davesavic/chatsavvy/migrations"
 	"github.com/davesavic/chatsavvy/repository"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -32,4 +33,14 @@ func New(client *mongo.Client) (*ChatSavvy, error) {
 		Conversation: repository.NewConversation(db),
 		Message:      repository.NewMessage(db, repository.NewConversation(db)),
 	}, nil
+}
+
+func (cs *ChatSavvy) Close() error {
+	return cs.client.Disconnect(context.Background())
+}
+
+// Migrate runs the migrations in the specified direction (up or down).
+// Beware that running migrations in the down direction will delete all data.
+func Migrate(client *mongo.Client, direction string) error {
+	return migrations.Run(client, direction)
 }
