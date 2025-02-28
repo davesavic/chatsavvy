@@ -28,9 +28,9 @@ func (c PaginateMessages) Validate() error {
 }
 
 type LoadMessages struct {
-	ConversationID string `validate:"required,min=1,max=100" bson:"conversation_id"`
-	LastMessageID  string `validate:"required,min=1,max=100" bson:"last_message_id"`
-	PerPage        uint   `validate:"required,min=1,max=100" bson:"per_page"`
+	ConversationID string  `validate:"required,min=1,max=100" bson:"conversation_id"`
+	LastMessageID  *string `validate:"omitempty,min=1,max=100" bson:"last_message_id"`
+	PerPage        uint    `validate:"required,min=1,max=100" bson:"per_page"`
 }
 
 func (c LoadMessages) Validate() error {

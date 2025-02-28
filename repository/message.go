@@ -101,6 +101,7 @@ func (m Message) Paginate(ctx context.Context, d data.PaginateMessages) ([]model
 
 // LoadMessages fetches messages in the conversation.
 // It differs from Paginate in that it fetches messages older than the last message id provided.
+// If the last message id is nil, it fetches the latest messages.
 // It returns the messages or an error.
 func (m Message) LoadMessages(ctx context.Context, d data.LoadMessages) ([]model.Message, error) {
 	if err := d.Validate(); err != nil {
@@ -112,18 +113,20 @@ func (m Message) LoadMessages(ctx context.Context, d data.LoadMessages) ([]model
 		return nil, fmt.Errorf("failed to fetch the conversation: %w", err)
 	}
 
-	messageObID, err := bson.ObjectIDFromHex(d.LastMessageID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse the last message id: %w", err)
-	}
-
 	filter := bson.M{
 		"conversation_id": d.ConversationID,
-		"_id":             bson.M{"$lt": messageObID},
+	}
+
+	if d.LastMessageID != nil {
+		messageObID, err := bson.ObjectIDFromHex(*d.LastMessageID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse the last message id: %w", err)
+		}
+
+		filter["_id"] = bson.M{"$lt": messageObID}
 	}
 
 	opts := options.Find().SetSort(bson.M{"_id": -1}).SetLimit(int64(d.PerPage))
-
 	cursor, err := m.db.Collection("messages").Find(ctx, filter, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch messages: %w", err)

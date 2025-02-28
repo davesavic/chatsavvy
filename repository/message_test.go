@@ -252,7 +252,7 @@ func TestMessageRepository_LoadMessages(t *testing.T) {
 			loadData: func(t *testing.T, conv *model.Conversation, lastMsg *model.Message) data.LoadMessages {
 				return data.LoadMessages{
 					ConversationID: "",
-					LastMessageID:  "",
+					LastMessageID:  (*string)(nil),
 					PerPage:        10,
 				}
 			},
@@ -266,9 +266,10 @@ func TestMessageRepository_LoadMessages(t *testing.T) {
 				return nil, nil
 			},
 			loadData: func(t *testing.T, conv *model.Conversation, lastMsg *model.Message) data.LoadMessages {
+				lmID := bson.NewObjectID().Hex()
 				return data.LoadMessages{
 					ConversationID: bson.NewObjectID().Hex(),
-					LastMessageID:  bson.NewObjectID().Hex(),
+					LastMessageID:  &lmID,
 					PerPage:        10,
 				}
 			},
@@ -287,9 +288,11 @@ func TestMessageRepository_LoadMessages(t *testing.T) {
 				return conv, nil
 			},
 			loadData: func(t *testing.T, conv *model.Conversation, lastMsg *model.Message) data.LoadMessages {
+				lmID := "invalid_hex"
+
 				return data.LoadMessages{
 					ConversationID: conv.ID.Hex(),
-					LastMessageID:  "invalid_hex",
+					LastMessageID:  &lmID,
 					PerPage:        10,
 				}
 			},
@@ -331,9 +334,59 @@ func TestMessageRepository_LoadMessages(t *testing.T) {
 				return conv, lastMsg
 			},
 			loadData: func(t *testing.T, conv *model.Conversation, lastMsg *model.Message) data.LoadMessages {
+				lmID := lastMsg.ID.Hex()
+
 				return data.LoadMessages{
 					ConversationID: conv.ID.Hex(),
-					LastMessageID:  lastMsg.ID.Hex(),
+					LastMessageID:  &lmID,
+					PerPage:        2,
+				}
+			},
+			expects: func(t *testing.T, msgs []model.Message, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, msgs, 2)
+
+				if len(msgs) == 2 {
+					assert.True(t, msgs[0].ID.Hex() > msgs[1].ID.Hex(), "expected messages in descending order")
+				}
+			},
+		},
+		{
+			name: "loads latest messages if last message id is nil",
+			setup: func(t *testing.T, cr *repository.Conversation, mr *repository.Message) (*model.Conversation, *model.Message) {
+				conv, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.AddParticipant{
+						{ParticipantID: "1234567890"},
+						{ParticipantID: "0987654321"},
+					},
+				})
+				assert.NoError(t, err)
+
+				for i := 0; i < 3; i++ {
+					_, err := mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+						Kind: "general",
+						Sender: data.MessageSender{
+							ParticipantID: "1234567890",
+						},
+						Content: fmt.Sprintf("Message %d", i),
+					})
+					assert.NoError(t, err)
+					time.Sleep(1 * time.Millisecond)
+				}
+				lastMsg, err := mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+					Kind: "general",
+					Sender: data.MessageSender{
+						ParticipantID: "1234567890",
+					},
+					Content: "Latest message",
+				})
+				assert.NoError(t, err)
+				return conv, lastMsg
+			},
+			loadData: func(t *testing.T, conv *model.Conversation, lastMsg *model.Message) data.LoadMessages {
+				return data.LoadMessages{
+					ConversationID: conv.ID.Hex(),
+					LastMessageID:  nil,
 					PerPage:        2,
 				}
 			},

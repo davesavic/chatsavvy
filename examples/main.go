@@ -63,7 +63,7 @@ func main() {
 
 	cs.Message.LoadMessages(context.Background(), csdata.LoadMessages{
 		ConversationID: "1234567890",
-		LastMessageID:  "0987654321",
+		LastMessageID:  nil,
 		PerPage:        10,
 	})
 
