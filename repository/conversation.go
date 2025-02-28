@@ -20,6 +20,38 @@ func NewConversation(db *mongo.Database) *Conversation {
 	return &Conversation{db: db}
 }
 
+func (c Conversation) ParticipantExists(ctx context.Context, conversationID string, d data.ParticipantExists) (bool, error) {
+	if err := d.Validate(); err != nil {
+		return false, fmt.Errorf("failed to validate participant exists data: %w", err)
+	}
+
+	conversationIDHex, err := bson.ObjectIDFromHex(conversationID)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse conversation id: %w", err)
+	}
+
+	participantMatch := bson.M{"participant_id": d.ParticipantID}
+
+	if len(d.Metadata) > 0 {
+		for key, value := range d.Metadata {
+			metadataField := fmt.Sprintf("metadata.%s", key)
+			participantMatch[metadataField] = value
+		}
+	}
+
+	filter := bson.M{
+		"_id":          conversationIDHex,
+		"participants": bson.M{"$elemMatch": participantMatch},
+	}
+
+	count, err := c.db.Collection("conversations").CountDocuments(ctx, filter)
+	if err != nil {
+		return false, fmt.Errorf("failed to count participants: %w", err)
+	}
+
+	return count > 0, nil
+}
+
 // AddParticipant adds a participant to the conversation.
 // It returns the updated conversation or an error.
 func (c Conversation) AddParticipant(ctx context.Context, conversationID string, d data.AddParticipant) (*model.Conversation, error) {

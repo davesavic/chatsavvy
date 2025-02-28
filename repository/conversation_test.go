@@ -582,3 +582,96 @@ func TestConversationRepository_UpdateLastMessage(t *testing.T) {
 	assert.Equal(t, "1234567890", conv.LastMessage.Sender.ParticipantID)
 	assert.Equal(t, "0987654321", conv.LastMessage.Sender.Metadata["business_id"])
 }
+
+func TestConversationRepository_ParticipantExists(t *testing.T) {
+	client := testutil.MustConnectMongoDB(t, os.Getenv("MONGODB_URI"))
+	t.Cleanup(func() {
+		client.Disconnect(nil)
+	})
+
+	cr := repository.NewConversation(client.Database("chatsavvy"))
+	conv, err := cr.Create(t.Context(), data.CreateConversation{
+		Participants: []data.AddParticipant{
+			{ParticipantID: "1234567890", Metadata: map[string]any{"business_id": "0987654321"}},
+			{ParticipantID: "1111111111"},
+		},
+	})
+	assert.NoError(t, err)
+
+	testCases := []struct {
+		name     string
+		prepData func(t *testing.T) data.ParticipantExists
+		asserts  func(t *testing.T, exists bool, err error)
+	}{
+		{
+			name: "valid with participant id only",
+			prepData: func(t *testing.T) data.ParticipantExists {
+				return data.ParticipantExists{
+					ParticipantID: "1234567890",
+				}
+			},
+			asserts: func(t *testing.T, exists bool, err error) {
+				assert.NoError(t, err)
+				assert.True(t, exists)
+			},
+		},
+		{
+			name: "valid with participant id and metadata",
+			prepData: func(t *testing.T) data.ParticipantExists {
+				return data.ParticipantExists{
+					ParticipantID: "1234567890",
+					Metadata:      map[string]any{"business_id": "0987654321"},
+				}
+			},
+			asserts: func(t *testing.T, exists bool, err error) {
+				assert.NoError(t, err)
+				assert.True(t, exists)
+			},
+		},
+		{
+			name: "non-existent participant id",
+			prepData: func(t *testing.T) data.ParticipantExists {
+				return data.ParticipantExists{
+					ParticipantID: "2222222222",
+				}
+			},
+			asserts: func(t *testing.T, exists bool, err error) {
+				assert.NoError(t, err)
+				assert.False(t, exists)
+			},
+		},
+		{
+			name: "non-existent participant id with existent metadata",
+			prepData: func(t *testing.T) data.ParticipantExists {
+				return data.ParticipantExists{
+					ParticipantID: "2222222222",
+					Metadata:      map[string]any{"business_id": "0987654321"},
+				}
+			},
+			asserts: func(t *testing.T, exists bool, err error) {
+				assert.NoError(t, err)
+				assert.False(t, exists)
+			},
+		},
+		{
+			name: "existent participant id with non-existent metadata",
+			prepData: func(t *testing.T) data.ParticipantExists {
+				return data.ParticipantExists{
+					ParticipantID: "1234567890",
+					Metadata:      map[string]any{"business_id": "1111111111"},
+				}
+			},
+			asserts: func(t *testing.T, exists bool, err error) {
+				assert.NoError(t, err)
+				assert.False(t, exists)
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			exists, err := cr.ParticipantExists(t.Context(), conv.ID.Hex(), tt.prepData(t))
+			tt.asserts(t, exists, err)
+		})
+	}
+}
