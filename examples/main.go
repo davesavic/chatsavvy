@@ -47,6 +47,26 @@ func main() {
 
 	cs.Conversation.DeleteParticipant(context.Background(), "1234567890", csdata.DeleteParticipant{})
 
+	cs.Conversation.ParticipantExists(context.Background(), "1234567890", csdata.ParticipantExists{
+		ParticipantID: "1234567890",
+		Metadata:      map[string]any{"business_id": "1234567890"},
+	})
+
+	cs.Conversation.FindByParticipants(context.Background(), csdata.FindByParticipants{
+		Participants: []csdata.FindParticipant{
+			{ParticipantID: "1234567890"},
+			{ParticipantID: "0987654321", Metadata: map[string]any{"business_id": "1234567890"}},
+		},
+	})
+
+	cs.Conversation.FindByMetadata(context.Background(), csdata.FindByMetadata{
+		Metadata:       map[string]any{"business_id": "1234567890"},
+		MatchMode:      csdata.MetadataMatchModeKeyValue,
+		Page:           1,
+		PerPage:        10,
+		IncludeDeleted: false,
+	})
+
 	cs.Message.Create(context.Background(), "1234567890", csdata.CreateMessage{
 		Kind: "general",
 		Sender: csdata.MessageSender{

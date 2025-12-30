@@ -297,6 +297,87 @@ func (c Conversation) Paginate(ctx context.Context, d data.PaginateConversations
 	return conversations, uint(total), nil
 }
 
+// FindByParticipants finds a conversation where all specified participants exist.
+// Returns nil, nil if no matching conversation exists.
+func (c Conversation) FindByParticipants(ctx context.Context, d data.FindByParticipants) (*model.Conversation, error) {
+	if err := d.Validate(); err != nil {
+		return nil, fmt.Errorf("failed to validate find by participants data: %w", err)
+	}
+
+	// Convert FindParticipant to AddParticipant for internal method
+	participants := make([]data.AddParticipant, len(d.Participants))
+	for i, p := range d.Participants {
+		participants[i] = data.AddParticipant{
+			ParticipantID: p.ParticipantID,
+			Metadata:      p.Metadata,
+		}
+	}
+
+	exists, conversation, err := c.conversationWithParticipantsExists(ctx, participants)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find conversation: %w", err)
+	}
+
+	if !exists {
+		return nil, nil
+	}
+
+	return conversation, nil
+}
+
+// FindByMetadata finds conversations that have participants matching the specified metadata.
+// It returns paginated conversations, total count, or an error.
+// When MatchMode is "key_value", it matches any participant with the specified key-value pairs.
+// When MatchMode is "exact", it matches any participant whose entire metadata object equals the provided metadata.
+// By default, soft-deleted participants (deleted_at != null) are excluded from matching.
+func (c Conversation) FindByMetadata(ctx context.Context, d data.FindByMetadata) ([]model.Conversation, uint, error) {
+	if err := d.Validate(); err != nil {
+		return nil, 0, fmt.Errorf("failed to validate find by metadata data: %w", err)
+	}
+
+	participantMatch := bson.M{}
+
+	switch d.MatchMode {
+	case data.MetadataMatchModeKeyValue:
+		for key, value := range d.Metadata {
+			participantMatch[fmt.Sprintf("metadata.%s", key)] = value
+		}
+	case data.MetadataMatchModeExact:
+		participantMatch["metadata"] = d.Metadata
+	}
+
+	if !d.IncludeDeleted {
+		participantMatch["deleted_at"] = nil
+	}
+
+	filter := bson.M{
+		"participants": bson.M{"$elemMatch": participantMatch},
+	}
+
+	total, err := c.db.Collection("conversations").CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count conversations: %w", err)
+	}
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "updated_at", Value: -1}}).
+		SetSkip(int64(d.Page-1) * int64(d.PerPage)).
+		SetLimit(int64(d.PerPage))
+
+	cursor, err := c.db.Collection("conversations").Find(ctx, filter, opts)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to fetch conversations: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var conversations []model.Conversation
+	if err := cursor.All(ctx, &conversations); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode conversations: %w", err)
+	}
+
+	return conversations, uint(total), nil
+}
+
 // UpdateLastMessage updates the last message in the conversation.
 // It returns an error.
 func (c Conversation) UpdateLastMessage(ctx context.Context, conversationID string, message model.Message) error {

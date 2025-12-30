@@ -583,6 +583,398 @@ func TestConversationRepository_UpdateLastMessage(t *testing.T) {
 	assert.Equal(t, "0987654321", conv.LastMessage.Sender.Metadata["business_id"])
 }
 
+func TestConversationRepository_FindByParticipants(t *testing.T) {
+	client := testutil.MustConnectMongoDB(t, os.Getenv("MONGODB_URI"))
+	t.Cleanup(func() {
+		client.Disconnect(nil)
+	})
+
+	cr := repository.NewConversation(client.Database("chatsavvy"))
+
+	// Create a conversation to find
+	conv, err := cr.Create(t.Context(), data.CreateConversation{
+		Participants: []data.AddParticipant{
+			{ParticipantID: "find-test-1", Metadata: map[string]any{"business_id": "business-1"}},
+			{ParticipantID: "find-test-2"},
+		},
+	})
+	assert.NoError(t, err)
+
+	testCases := []struct {
+		name     string
+		prepData func(t *testing.T) data.FindByParticipants
+		asserts  func(t *testing.T, result *model.Conversation, err error)
+	}{
+		{
+			name: "finds existing conversation with exact participants",
+			prepData: func(t *testing.T) data.FindByParticipants {
+				return data.FindByParticipants{
+					Participants: []data.FindParticipant{
+						{ParticipantID: "find-test-1", Metadata: map[string]any{"business_id": "business-1"}},
+						{ParticipantID: "find-test-2"},
+					},
+				}
+			},
+			asserts: func(t *testing.T, result *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, conv.ID.Hex(), result.ID.Hex())
+				assert.Len(t, result.Participants, 2)
+			},
+		},
+		{
+			name: "returns nil when no matching conversation exists",
+			prepData: func(t *testing.T) data.FindByParticipants {
+				return data.FindByParticipants{
+					Participants: []data.FindParticipant{
+						{ParticipantID: "nonexistent-1"},
+						{ParticipantID: "nonexistent-2"},
+					},
+				}
+			},
+			asserts: func(t *testing.T, result *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.Nil(t, result)
+			},
+		},
+		{
+			name: "returns nil when metadata does not match",
+			prepData: func(t *testing.T) data.FindByParticipants {
+				return data.FindByParticipants{
+					Participants: []data.FindParticipant{
+						{ParticipantID: "find-test-1", Metadata: map[string]any{"business_id": "wrong-business"}},
+						{ParticipantID: "find-test-2"},
+					},
+				}
+			},
+			asserts: func(t *testing.T, result *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.Nil(t, result)
+			},
+		},
+		{
+			name: "returns nil when only one participant matches",
+			prepData: func(t *testing.T) data.FindByParticipants {
+				return data.FindByParticipants{
+					Participants: []data.FindParticipant{
+						{ParticipantID: "find-test-1", Metadata: map[string]any{"business_id": "business-1"}},
+						{ParticipantID: "different-participant"},
+					},
+				}
+			},
+			asserts: func(t *testing.T, result *model.Conversation, err error) {
+				assert.NoError(t, err)
+				assert.Nil(t, result)
+			},
+		},
+		{
+			name: "returns error when less than 2 participants",
+			prepData: func(t *testing.T) data.FindByParticipants {
+				return data.FindByParticipants{
+					Participants: []data.FindParticipant{
+						{ParticipantID: "find-test-1"},
+					},
+				}
+			},
+			asserts: func(t *testing.T, result *model.Conversation, err error) {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := cr.FindByParticipants(t.Context(), tt.prepData(t))
+			tt.asserts(t, result, err)
+		})
+	}
+}
+
+func TestConversationRepository_FindByMetadata(t *testing.T) {
+	client := testutil.MustConnectMongoDB(t, os.Getenv("MONGODB_URI"))
+	t.Cleanup(func() {
+		client.Disconnect(nil)
+	})
+
+	cr := repository.NewConversation(client.Database("chatsavvy"))
+
+	// Create test conversations with various metadata configurations
+	conv1, err := cr.Create(t.Context(), data.CreateConversation{
+		Participants: []data.AddParticipant{
+			{ParticipantID: "meta-test-1", Metadata: map[string]any{"businessId": "biz-123", "region": "us-east"}},
+			{ParticipantID: "meta-test-2"},
+		},
+	})
+	assert.NoError(t, err)
+	time.Sleep(1 * time.Millisecond)
+
+	conv2, err := cr.Create(t.Context(), data.CreateConversation{
+		Participants: []data.AddParticipant{
+			{ParticipantID: "meta-test-3", Metadata: map[string]any{"businessId": "biz-123", "region": "eu-west"}},
+			{ParticipantID: "meta-test-4"},
+		},
+	})
+	assert.NoError(t, err)
+	time.Sleep(1 * time.Millisecond)
+
+	conv3, err := cr.Create(t.Context(), data.CreateConversation{
+		Participants: []data.AddParticipant{
+			{ParticipantID: "meta-test-5", Metadata: map[string]any{"businessId": "biz-456"}},
+			{ParticipantID: "meta-test-6"},
+		},
+	})
+	assert.NoError(t, err)
+	time.Sleep(1 * time.Millisecond)
+
+	// Create a conversation with a deleted participant
+	conv4, err := cr.Create(t.Context(), data.CreateConversation{
+		Participants: []data.AddParticipant{
+			{ParticipantID: "meta-test-7", Metadata: map[string]any{"businessId": "biz-789"}},
+			{ParticipantID: "meta-test-8"},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Soft-delete the participant with metadata
+	_, err = cr.DeleteParticipant(t.Context(), conv4.ID.Hex(), data.DeleteParticipant{
+		ParticipantID: "meta-test-7",
+		Metadata:      map[string]any{"businessId": "biz-789"},
+	})
+	assert.NoError(t, err)
+
+	testCases := []struct {
+		name     string
+		prepData func(t *testing.T) data.FindByMetadata
+		asserts  func(t *testing.T, convs []model.Conversation, total uint, err error)
+	}{
+		{
+			name: "key_value match finds conversations with matching businessId",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:  map[string]any{"businessId": "biz-123"},
+					MatchMode: data.MetadataMatchModeKeyValue,
+					Page:      1,
+					PerPage:   10,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, convs, 2)
+				assert.Equal(t, uint(2), total)
+				// Results should be sorted by updated_at desc
+				assert.Equal(t, conv2.ID.Hex(), convs[0].ID.Hex())
+				assert.Equal(t, conv1.ID.Hex(), convs[1].ID.Hex())
+			},
+		},
+		{
+			name: "key_value match with multiple keys",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:  map[string]any{"businessId": "biz-123", "region": "us-east"},
+					MatchMode: data.MetadataMatchModeKeyValue,
+					Page:      1,
+					PerPage:   10,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, convs, 1)
+				assert.Equal(t, uint(1), total)
+				assert.Equal(t, conv1.ID.Hex(), convs[0].ID.Hex())
+			},
+		},
+		{
+			name: "exact match requires complete metadata match",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:  map[string]any{"businessId": "biz-456"},
+					MatchMode: data.MetadataMatchModeExact,
+					Page:      1,
+					PerPage:   10,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, convs, 1)
+				assert.Equal(t, uint(1), total)
+				assert.Equal(t, conv3.ID.Hex(), convs[0].ID.Hex())
+			},
+		},
+		{
+			name: "exact match does not match partial metadata",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:  map[string]any{"businessId": "biz-123"},
+					MatchMode: data.MetadataMatchModeExact,
+					Page:      1,
+					PerPage:   10,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, convs, 0)
+				assert.Equal(t, uint(0), total)
+			},
+		},
+		{
+			name: "excludes soft-deleted participants by default",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:  map[string]any{"businessId": "biz-789"},
+					MatchMode: data.MetadataMatchModeKeyValue,
+					Page:      1,
+					PerPage:   10,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, convs, 0)
+				assert.Equal(t, uint(0), total)
+			},
+		},
+		{
+			name: "includes soft-deleted participants when IncludeDeleted is true",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:       map[string]any{"businessId": "biz-789"},
+					MatchMode:      data.MetadataMatchModeKeyValue,
+					Page:           1,
+					PerPage:        10,
+					IncludeDeleted: true,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, convs, 1)
+				assert.Equal(t, uint(1), total)
+				assert.Equal(t, conv4.ID.Hex(), convs[0].ID.Hex())
+			},
+		},
+		{
+			name: "pagination works correctly",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:  map[string]any{"businessId": "biz-123"},
+					MatchMode: data.MetadataMatchModeKeyValue,
+					Page:      1,
+					PerPage:   1,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, convs, 1)
+				assert.Equal(t, uint(2), total)
+				assert.Equal(t, conv2.ID.Hex(), convs[0].ID.Hex())
+			},
+		},
+		{
+			name: "second page returns remaining results",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:  map[string]any{"businessId": "biz-123"},
+					MatchMode: data.MetadataMatchModeKeyValue,
+					Page:      2,
+					PerPage:   1,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, convs, 1)
+				assert.Equal(t, uint(2), total)
+				assert.Equal(t, conv1.ID.Hex(), convs[0].ID.Hex())
+			},
+		},
+		{
+			name: "no matches returns empty slice",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:  map[string]any{"businessId": "nonexistent"},
+					MatchMode: data.MetadataMatchModeKeyValue,
+					Page:      1,
+					PerPage:   10,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.NoError(t, err)
+				assert.Len(t, convs, 0)
+				assert.Equal(t, uint(0), total)
+			},
+		},
+		{
+			name: "validation error with empty metadata",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:  map[string]any{},
+					MatchMode: data.MetadataMatchModeKeyValue,
+					Page:      1,
+					PerPage:   10,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.Error(t, err)
+				assert.Nil(t, convs)
+				assert.Zero(t, total)
+			},
+		},
+		{
+			name: "validation error with invalid match mode",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:  map[string]any{"businessId": "biz-123"},
+					MatchMode: "invalid",
+					Page:      1,
+					PerPage:   10,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.Error(t, err)
+				assert.Nil(t, convs)
+				assert.Zero(t, total)
+			},
+		},
+		{
+			name: "validation error with page 0",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:  map[string]any{"businessId": "biz-123"},
+					MatchMode: data.MetadataMatchModeKeyValue,
+					Page:      0,
+					PerPage:   10,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.Error(t, err)
+				assert.Nil(t, convs)
+				assert.Zero(t, total)
+			},
+		},
+		{
+			name: "validation error with perPage exceeding max",
+			prepData: func(t *testing.T) data.FindByMetadata {
+				return data.FindByMetadata{
+					Metadata:  map[string]any{"businessId": "biz-123"},
+					MatchMode: data.MetadataMatchModeKeyValue,
+					Page:      1,
+					PerPage:   101,
+				}
+			},
+			asserts: func(t *testing.T, convs []model.Conversation, total uint, err error) {
+				assert.Error(t, err)
+				assert.Nil(t, convs)
+				assert.Zero(t, total)
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			convs, total, err := cr.FindByMetadata(t.Context(), tt.prepData(t))
+			tt.asserts(t, convs, total, err)
+		})
+	}
+}
+
 func TestConversationRepository_ParticipantExists(t *testing.T) {
 	client := testutil.MustConnectMongoDB(t, os.Getenv("MONGODB_URI"))
 	t.Cleanup(func() {
