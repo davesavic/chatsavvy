@@ -73,6 +73,16 @@ func main() {
 			ParticipantID: "1234567890",
 		},
 		Content: "Hello, World!",
+		Attachments: []csdata.CreateAttachment{
+			{
+				Kind: "file",
+				Metadata: map[string]any{
+					"filename":  "report.pdf",
+					"mime_type": "application/pdf",
+					"url":       "https://example.com/report.pdf",
+				},
+			},
+		},
 	})
 
 	cs.Message.Paginate(context.Background(), csdata.PaginateMessages{

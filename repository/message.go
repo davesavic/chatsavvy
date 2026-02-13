@@ -45,6 +45,7 @@ func (m Message) Create(ctx context.Context, conversationID string, d data.Creat
 		"sender":          d.Sender,
 		"kind":            d.Kind,
 		"content":         d.Content,
+		"attachments":     d.Attachments,
 		"created_at":      bsonNow,
 	})
 	if err != nil {

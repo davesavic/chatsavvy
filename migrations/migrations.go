@@ -22,6 +22,7 @@ var MigrationCollection = "migrations"
 
 var Migrations = []Migration{
 	{Timestamp: 1739673768, Up: Up1739673768, Down: Down1739673768},
+	{Timestamp: 1770967803, Up: Up1770967803, Down: Down1770967803},
 }
 
 func Run(client *mongo.Client, direction string) error {

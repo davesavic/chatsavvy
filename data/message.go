@@ -7,10 +7,16 @@ type MessageSender struct {
 	Metadata      map[string]any `validate:"omitempty" bson:"metadata"`
 }
 
+type CreateAttachment struct {
+	Kind     string         `validate:"required,min=1,max=100" bson:"kind"`
+	Metadata map[string]any `validate:"omitempty" bson:"metadata"`
+}
+
 type CreateMessage struct {
-	Kind    string        `validate:"required,oneof=general system" bson:"kind"`
-	Sender  MessageSender `validate:"required" bson:"sender"`
-	Content string        `validate:"required,min=1,max=5000" bson:"content"`
+	Kind        string             `validate:"required,oneof=general system" bson:"kind"`
+	Sender      MessageSender      `validate:"required" bson:"sender"`
+	Content     string             `validate:"required,min=1,max=5000" bson:"content"`
+	Attachments []CreateAttachment `validate:"omitempty,max=10,dive" bson:"attachments"`
 }
 
 func (c CreateMessage) Validate() error {
