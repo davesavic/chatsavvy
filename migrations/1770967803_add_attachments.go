@@ -12,7 +12,7 @@ func Up1770967803(ctx context.Context, db *mongo.Database) error {
 	messagesValidator := bson.M{
 		"$jsonSchema": bson.M{
 			"bsonType": "object",
-			"required": []string{"conversation_id", "sender", "kind", "content", "created_at"},
+			"required": []string{"conversation_id", "sender", "kind", "created_at"},
 			"properties": bson.M{
 				"conversation_id": bson.M{
 					"bsonType": "string",

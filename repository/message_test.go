@@ -233,6 +233,70 @@ func TestMessageRepository_Create(t *testing.T) {
 			},
 		},
 		{
+			name: "it creates a message with attachments and no content",
+			data: func(t *testing.T) data.CreateMessage {
+				return data.CreateMessage{
+					Kind: "general",
+					Sender: data.MessageSender{
+						ParticipantID: "1234567890",
+					},
+					Attachments: []data.CreateAttachment{
+						{Kind: "file", Metadata: map[string]any{"filename": "photo.jpg"}},
+						{Kind: "link", Metadata: map[string]any{"url": "https://example.com"}},
+					},
+				}
+			},
+			setup: func(t *testing.T) *model.Conversation {
+				conv, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.AddParticipant{
+						{ParticipantID: "1234567890"},
+						{ParticipantID: "0987654321"},
+					},
+				})
+				assert.NoError(t, err)
+				return conv
+			},
+			expects: func(t *testing.T, msg *model.Message) {
+				assert.NotNil(t, msg)
+				assert.Empty(t, msg.Content)
+				assert.Len(t, msg.Attachments, 2)
+			},
+		},
+		{
+			name: "it propagates attachment-only message to conversation last_message",
+			data: func(t *testing.T) data.CreateMessage {
+				return data.CreateMessage{
+					Kind: "general",
+					Sender: data.MessageSender{
+						ParticipantID: "1234567890",
+					},
+					Attachments: []data.CreateAttachment{
+						{Kind: "file", Metadata: map[string]any{"filename": "doc.pdf"}},
+					},
+				}
+			},
+			setup: func(t *testing.T) *model.Conversation {
+				conv, err := cr.Create(t.Context(), data.CreateConversation{
+					Participants: []data.AddParticipant{
+						{ParticipantID: "1234567890"},
+						{ParticipantID: "0987654321"},
+					},
+				})
+				assert.NoError(t, err)
+				return conv
+			},
+			expects: func(t *testing.T, msg *model.Message) {
+				assert.NotNil(t, msg)
+
+				conv, err := cr.Find(t.Context(), msg.ConversationID.Hex())
+				assert.NoError(t, err)
+				assert.NotNil(t, conv.LastMessage)
+				assert.Empty(t, conv.LastMessage.Content)
+				assert.Len(t, conv.LastMessage.Attachments, 1)
+				assert.Equal(t, "doc.pdf", conv.LastMessage.Attachments[0].Metadata["filename"])
+			},
+		},
+		{
 			name: "it updates the conversation last message",
 			data: func(t *testing.T) data.CreateMessage {
 				return data.CreateMessage{
@@ -272,6 +336,24 @@ func TestMessageRepository_Create(t *testing.T) {
 			tc.expects(t, msg)
 		})
 	}
+
+	t.Run("it rejects a message with no content and no attachments", func(t *testing.T) {
+		conv, err := cr.Create(t.Context(), data.CreateConversation{
+			Participants: []data.AddParticipant{
+				{ParticipantID: "1234567890"},
+				{ParticipantID: "0987654321"},
+			},
+		})
+		assert.NoError(t, err)
+
+		msg, err := mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+			Kind:   "general",
+			Sender: data.MessageSender{ParticipantID: "1234567890"},
+		})
+		assert.Error(t, err)
+		assert.Nil(t, msg)
+		assert.Contains(t, err.Error(), "content or at least one attachment")
+	})
 }
 
 func TestMessageRepository_Paginate(t *testing.T) {

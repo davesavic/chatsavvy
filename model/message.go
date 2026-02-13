@@ -21,7 +21,7 @@ type Message struct {
 	ConversationID bson.ObjectID `bson:"conversation_id"`
 	Sender         MessageSender `bson:"sender"`
 	Kind           string        `bson:"kind"`
-	Content        string        `bson:"content"`
+	Content        string        `bson:"content,omitempty"`
 	Attachments    []Attachment  `bson:"attachments"`
 	Reactions      []Reaction    `bson:"reactions"`
 	CreatedAt      time.Time     `bson:"created_at"`

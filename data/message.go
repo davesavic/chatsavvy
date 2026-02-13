@@ -1,6 +1,10 @@
 package data
 
-import "github.com/go-playground/validator/v10"
+import (
+	"errors"
+
+	"github.com/go-playground/validator/v10"
+)
 
 type MessageSender struct {
 	ParticipantID string         `validate:"required,min=1,max=100" bson:"participant_id"`
@@ -15,12 +19,20 @@ type CreateAttachment struct {
 type CreateMessage struct {
 	Kind        string             `validate:"required,oneof=general system" bson:"kind"`
 	Sender      MessageSender      `validate:"required" bson:"sender"`
-	Content     string             `validate:"required,min=1,max=5000" bson:"content"`
+	Content     string             `validate:"omitempty,max=5000" bson:"content"`
 	Attachments []CreateAttachment `validate:"omitempty,max=10,dive" bson:"attachments"`
 }
 
 func (c CreateMessage) Validate() error {
-	return validator.New().Struct(c)
+	if err := validator.New().Struct(c); err != nil {
+		return err
+	}
+
+	if c.Content == "" && len(c.Attachments) == 0 {
+		return errors.New("message must have content or at least one attachment")
+	}
+
+	return nil
 }
 
 type PaginateMessages struct {
