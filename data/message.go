@@ -17,7 +17,7 @@ type CreateAttachment struct {
 }
 
 type CreateMessage struct {
-	Kind        string             `validate:"required,oneof=general system" bson:"kind"`
+	Kind        string             `validate:"required,min=1,max=100" bson:"kind"`
 	Sender      MessageSender      `validate:"required" bson:"sender"`
 	Content     string             `validate:"omitempty,max=5000" bson:"content"`
 	Attachments []CreateAttachment `validate:"omitempty,max=10,dive" bson:"attachments"`
