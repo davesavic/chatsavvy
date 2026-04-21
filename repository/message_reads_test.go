@@ -1016,4 +1016,138 @@ func TestMessageRepository_UnreadCount(t *testing.T) {
 		assert.Equal(t, uint(0), count)
 		assert.EqualError(t, err, "participant not found in conversation")
 	})
+
+	t.Run("own messages are not counted (nil cursor)", func(t *testing.T) {
+		conv, err := cr.Create(t.Context(), data.CreateConversation{
+			Participants: []data.AddParticipant{
+				{ParticipantID: "uc-own-a"},
+				{ParticipantID: "uc-own-b"},
+			},
+		})
+		require.NoError(t, err)
+
+		// Alice authors all three messages; Bob sends none.
+		for i := 0; i < 3; i++ {
+			_, err := mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+				Kind:    "general",
+				Sender:  data.MessageSender{ParticipantID: "uc-own-a"},
+				Content: fmt.Sprintf("m%d", i+1),
+			})
+			require.NoError(t, err)
+		}
+
+		count, err := mr.UnreadCount(t.Context(), data.UnreadCount{
+			ConversationID: conv.ID.Hex(),
+			Participant:    data.ReadParticipant{ParticipantID: "uc-own-a"},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, uint(0), count, "caller's own messages must not count as unread")
+	})
+
+	t.Run("mixed senders with nil cursor returns peer count only", func(t *testing.T) {
+		conv, err := cr.Create(t.Context(), data.CreateConversation{
+			Participants: []data.AddParticipant{
+				{ParticipantID: "uc-mixed-a"},
+				{ParticipantID: "uc-mixed-b"},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+			Kind:    "general",
+			Sender:  data.MessageSender{ParticipantID: "uc-mixed-a"},
+			Content: "from-a",
+		})
+		require.NoError(t, err)
+		for i := 0; i < 2; i++ {
+			_, err := mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+				Kind:    "general",
+				Sender:  data.MessageSender{ParticipantID: "uc-mixed-b"},
+				Content: fmt.Sprintf("from-b-%d", i+1),
+			})
+			require.NoError(t, err)
+		}
+
+		count, err := mr.UnreadCount(t.Context(), data.UnreadCount{
+			ConversationID: conv.ID.Hex(),
+			Participant:    data.ReadParticipant{ParticipantID: "uc-mixed-a"},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, uint(2), count, "only peer messages should count as unread for Alice")
+	})
+
+	t.Run("own replies after MarkRead do not re-inflate count", func(t *testing.T) {
+		conv, err := cr.Create(t.Context(), data.CreateConversation{
+			Participants: []data.AddParticipant{
+				{ParticipantID: "uc-reply-a"},
+				{ParticipantID: "uc-reply-b"},
+			},
+		})
+		require.NoError(t, err)
+
+		peer, err := mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+			Kind:    "general",
+			Sender:  data.MessageSender{ParticipantID: "uc-reply-b"},
+			Content: "hi",
+		})
+		require.NoError(t, err)
+
+		_, err = mr.MarkRead(t.Context(), data.MarkRead{
+			ConversationID: conv.ID.Hex(),
+			Participant:    data.ReadParticipant{ParticipantID: "uc-reply-a"},
+			MessageID:      peer.ID.Hex(),
+		})
+		require.NoError(t, err)
+
+		// Alice posts two replies after marking read.
+		for i := 0; i < 2; i++ {
+			_, err := mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+				Kind:    "general",
+				Sender:  data.MessageSender{ParticipantID: "uc-reply-a"},
+				Content: fmt.Sprintf("reply-%d", i+1),
+			})
+			require.NoError(t, err)
+		}
+
+		count, err := mr.UnreadCount(t.Context(), data.UnreadCount{
+			ConversationID: conv.ID.Hex(),
+			Participant:    data.ReadParticipant{ParticipantID: "uc-reply-a"},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, uint(0), count, "caller's own replies past their cursor must not count")
+	})
+
+	t.Run("metadata-sensitive sender identity", func(t *testing.T) {
+		// Two participants sharing participant_id "u1" distinguished only by org metadata.
+		conv, err := cr.Create(t.Context(), data.CreateConversation{
+			Participants: []data.AddParticipant{
+				{ParticipantID: "u1", Metadata: map[string]any{"org": "A"}},
+				{ParticipantID: "u1", Metadata: map[string]any{"org": "B"}},
+			},
+		})
+		require.NoError(t, err)
+
+		// Message from (u1, org=A) — must NOT count for caller (u1, org=A).
+		_, err = mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+			Kind:    "general",
+			Sender:  data.MessageSender{ParticipantID: "u1", Metadata: map[string]any{"org": "A"}},
+			Content: "from-A",
+		})
+		require.NoError(t, err)
+
+		// Message from (u1, org=B) — MUST count for caller (u1, org=A).
+		_, err = mr.Create(t.Context(), conv.ID.Hex(), data.CreateMessage{
+			Kind:    "general",
+			Sender:  data.MessageSender{ParticipantID: "u1", Metadata: map[string]any{"org": "B"}},
+			Content: "from-B",
+		})
+		require.NoError(t, err)
+
+		count, err := mr.UnreadCount(t.Context(), data.UnreadCount{
+			ConversationID: conv.ID.Hex(),
+			Participant:    data.ReadParticipant{ParticipantID: "u1", Metadata: map[string]any{"org": "A"}},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, uint(1), count, "only the (u1, org=B) message is unread for caller (u1, org=A)")
+	})
 }

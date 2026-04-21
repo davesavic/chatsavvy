@@ -426,6 +426,27 @@ func (m Message) UnreadCount(ctx context.Context, d data.UnreadCount) (uint, err
 		filter["_id"] = bson.M{"$gt": *found.LastReadMessageID}
 	}
 
+	// Exclude messages authored by the caller. Mirrors mapsEqual semantics:
+	// key-count match via $objectToArray+$size treats null/missing/{} as equal,
+	// and each caller key is asserted directly via dot-path so BSON sub-document
+	// field-order sensitivity (Go map iteration is non-deterministic) is avoided.
+	selfClauses := []bson.M{
+		{"sender.participant_id": d.Participant.ParticipantID},
+	}
+	for k, v := range d.Participant.Metadata {
+		selfClauses = append(selfClauses, bson.M{"sender.metadata." + k: v})
+	}
+	selfClauses = append(selfClauses, bson.M{"$expr": bson.M{
+		"$eq": []any{
+			bson.M{"$size": bson.M{"$ifNull": []any{
+				bson.M{"$objectToArray": "$sender.metadata"},
+				[]any{},
+			}}},
+			len(d.Participant.Metadata),
+		},
+	}})
+	filter["$nor"] = []bson.M{{"$and": selfClauses}}
+
 	count, err := m.db.Collection("messages").CountDocuments(ctx, filter)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count unread messages: %w", err)
