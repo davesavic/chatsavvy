@@ -58,7 +58,7 @@ tasks:
     desc: Run all tests
     aliases: [t]
     cmds:
-      - go test -v ./...
+      - go test -v ./... -coverprofile=coverage.out -coverpkg=./...
 
   test:coverage:
     desc: Run all tests with coverage

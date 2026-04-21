@@ -69,3 +69,45 @@ type ToggleReaction struct {
 func (c ToggleReaction) Validate() error {
 	return validator.New().Struct(c)
 }
+
+type ReadParticipant struct {
+	ParticipantID string         `validate:"required,min=1,max=100" bson:"participant_id"`
+	Metadata      map[string]any `validate:"omitempty" bson:"metadata"`
+}
+
+type MarkRead struct {
+	ConversationID string          `validate:"required,min=1,max=100" bson:"conversation_id"`
+	Participant    ReadParticipant `validate:"required" bson:"participant"`
+	MessageID      string          `validate:"required,min=1,max=100" bson:"message_id"`
+}
+
+func (c MarkRead) Validate() error {
+	return validator.New().Struct(c)
+}
+
+type MarkAllRead struct {
+	ConversationID string          `validate:"required,min=1,max=100" bson:"conversation_id"`
+	Participant    ReadParticipant `validate:"required" bson:"participant"`
+}
+
+func (c MarkAllRead) Validate() error {
+	return validator.New().Struct(c)
+}
+
+type ReadersOf struct {
+	ConversationID string `validate:"required,min=1,max=100" bson:"conversation_id"`
+	MessageID      string `validate:"required,min=1,max=100" bson:"message_id"`
+}
+
+func (c ReadersOf) Validate() error {
+	return validator.New().Struct(c)
+}
+
+type UnreadCount struct {
+	ConversationID string          `validate:"required,min=1,max=100" bson:"conversation_id"`
+	Participant    ReadParticipant `validate:"required" bson:"participant"`
+}
+
+func (c UnreadCount) Validate() error {
+	return validator.New().Struct(c)
+}
