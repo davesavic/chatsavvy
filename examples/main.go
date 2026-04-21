@@ -108,5 +108,41 @@ func main() {
 		},
 	})
 
+	cs.Message.MarkRead(context.Background(), csdata.MarkRead{
+		ConversationID: "1234567890",
+		MessageID:      "0987654321",
+		Participant: csdata.ReadParticipant{
+			ParticipantID: "1234567890",
+			Metadata: map[string]any{
+				"business_id": "1234567891",
+			},
+		},
+	})
+
+	cs.Message.MarkAllRead(context.Background(), csdata.MarkAllRead{
+		ConversationID: "1234567890",
+		Participant: csdata.ReadParticipant{
+			ParticipantID: "1234567890",
+			Metadata: map[string]any{
+				"business_id": "1234567891",
+			},
+		},
+	})
+
+	cs.Message.ReadersOf(context.Background(), csdata.ReadersOf{
+		ConversationID: "1234567890",
+		MessageID:      "0987654321",
+	})
+
+	cs.Message.UnreadCount(context.Background(), csdata.UnreadCount{
+		ConversationID: "1234567890",
+		Participant: csdata.ReadParticipant{
+			ParticipantID: "1234567890",
+			Metadata: map[string]any{
+				"business_id": "1234567891",
+			},
+		},
+	})
+
 	// cs.Conversation.Delete(context.Background(), "1234567890")
 }
